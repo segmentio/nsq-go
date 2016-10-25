@@ -22,3 +22,9 @@ _testmain.go
 *.exe
 *.test
 *.prof
+
+# Emacs
+*~
+
+# govendor
+/vendor/*/

@@ -17,7 +17,7 @@ func main() {
     // Create a new consumer, looking up nsqd nodes from the listed nsqlookup
     // addresses, pulling messages from the 'world' channel of the 'hello' topic
     // with a maximum of 250 in-flight messages.
-    consumer, err := nsq.StartConsumer(nsq.ConsumerConfig{
+    consumer, _ := nsq.StartConsumer(nsq.ConsumerConfig{
         Topic:   "hello",
         Channel: "world",
         Lookup:  []string{

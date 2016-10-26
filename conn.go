@@ -10,7 +10,14 @@ import (
 )
 
 const (
-	UserAgent = "github.com/segmentio/nsq-go"
+	DefaultUserAgent     = "github.com/segmentio/nsq-go"
+	DefaultMaxInFlight   = 1
+	DefaultDialTimeout   = 5 * time.Second
+	DefaultReadTimeout   = 1 * time.Minute
+	DefaultWriteTimeout  = 10 * time.Second
+	DefaultLookupTimeout = 10 * time.Second
+
+	NoTimeout = time.Duration(0)
 )
 
 type Conn struct {
@@ -33,7 +40,7 @@ func NewConn(conn net.Conn) *Conn {
 }
 
 func Dial(addr string) (c *Conn, err error) {
-	return DialTimeout(addr, 10*time.Second)
+	return DialTimeout(addr, DefaultDialTimeout)
 }
 
 func DialTimeout(addr string, timeout time.Duration) (c *Conn, err error) {

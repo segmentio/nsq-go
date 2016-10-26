@@ -44,18 +44,25 @@ type Message struct {
 	Timestamp time.Time
 
 	// Unexported fields set by the consumer connections.
-	finish  chan<- MessageID
-	requeue chan<- MessageID
+	cmdChan chan<- Command
 }
 
 func (m *Message) Finish() {
-	m.finish <- m.ID
-	m.finish, m.requeue = nil, nil
+	if m.cmdChan == nil {
+		panic("(*Message).Finish or (*Message).Requeue has already been called")
+	}
+	defer func() { recover() }() // the connection may have been closed asynchronously
+	m.cmdChan <- Fin{MessageID: m.ID}
+	m.cmdChan = nil
 }
 
-func (m *Message) Requeue() {
-	m.requeue <- m.ID
-	m.finish, m.requeue = nil, nil
+func (m *Message) Requeue(timeout time.Duration) {
+	if m.cmdChan == nil {
+		panic("(*Message).Finish or (*Message).Requeue has already been called")
+	}
+	defer func() { recover() }() // the connection may have been closed asynchronously
+	m.cmdChan <- Req{MessageID: m.ID, Timeout: timeout}
+	m.cmdChan = nil
 }
 
 func (m Message) FrameType() FrameType {

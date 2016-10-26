@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"io"
+	"os"
 
 	"github.com/pkg/errors"
 )
@@ -91,4 +92,16 @@ func readIdentifyBody(r *bufio.Reader) (body identifyBody, err error) {
 	}
 
 	return
+}
+
+func setIdentifyDefaults(c Identify) Identify {
+	if len(c.UserAgent) == 0 {
+		c.UserAgent = DefaultUserAgent
+	}
+
+	if len(c.Hostname) == 0 {
+		c.Hostname, _ = os.Hostname()
+	}
+
+	return c
 }

@@ -11,6 +11,7 @@ type Response string
 
 const (
 	OK        Response = "OK"
+	Heartbeat Response = "_heartbeat_"
 	CloseWait Response = "CLOSE_WAIT"
 )
 

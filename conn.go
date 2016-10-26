@@ -38,9 +38,16 @@ func Dial(addr string) (c *Conn, err error) {
 
 func DialTimeout(addr string, timeout time.Duration) (c *Conn, err error) {
 	var conn net.Conn
+	var magic = [...]byte{' ', ' ', 'V', '2'}
 
 	if conn, err = net.DialTimeout("tcp", addr, timeout); err != nil {
 		err = errors.Wrap(err, "dialing tcp://"+addr)
+		return
+	}
+
+	if _, err = conn.Write(magic[:]); err != nil {
+		conn.Close()
+		err = errors.Wrap(err, "sending magic number to tcp://"+addr)
 		return
 	}
 

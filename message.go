@@ -42,6 +42,20 @@ type Message struct {
 	Attempts  uint16
 	Body      []byte
 	Timestamp time.Time
+
+	// Unexported fields set by the consumer connections.
+	finish  chan<- MessageID
+	requeue chan<- MessageID
+}
+
+func (m *Message) Finish() {
+	m.finish <- m.ID
+	m.finish, m.requeue = nil, nil
+}
+
+func (m *Message) Requeue() {
+	m.requeue <- m.ID
+	m.finish, m.requeue = nil, nil
 }
 
 func (m Message) FrameType() FrameType {

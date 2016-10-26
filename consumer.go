@@ -113,14 +113,8 @@ func (c *Consumer) Shutdown() (err error) {
 	return
 }
 
-func (c *Consumer) ReadMessage() (msg Message, err error) {
-	var ok bool
-
-	if msg, ok = <-c.msgs; !ok {
-		err = io.EOF
-	}
-
-	return
+func (c *Consumer) Messages() <-chan Message {
+	return c.msgs
 }
 
 func (c *Consumer) stop() {

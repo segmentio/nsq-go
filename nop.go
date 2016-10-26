@@ -13,7 +13,7 @@ func (c Nop) Name() string {
 	return "NOP"
 }
 
-func (c Nop) write(w *bufio.Writer) (err error) {
+func (c Nop) Write(w *bufio.Writer) (err error) {
 	if _, err = w.WriteString("NOP\n"); err != nil {
 		err = errors.Wrap(err, "writing NOP command")
 		return

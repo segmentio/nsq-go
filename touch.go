@@ -14,7 +14,7 @@ func (c Touch) Name() string {
 	return "TOUCH"
 }
 
-func (c Touch) write(w *bufio.Writer) (err error) {
+func (c Touch) Write(w *bufio.Writer) (err error) {
 	if _, err = w.WriteString("TOUCH "); err != nil {
 		err = errors.Wrap(err, "writing TOUCH command")
 		return

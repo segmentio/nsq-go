@@ -32,7 +32,7 @@ func (e Error) String() string {
 	return string(e)
 }
 
-func (e Error) write(w *bufio.Writer) (err error) {
+func (e Error) Write(w *bufio.Writer) (err error) {
 	if err = writeFrameHeader(w, FrameTypeError, len(e)); err != nil {
 		err = errors.WithMessage(err, "writing error message")
 		return

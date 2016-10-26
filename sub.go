@@ -15,7 +15,7 @@ func (c Sub) Name() string {
 	return "SUB"
 }
 
-func (c Sub) write(w *bufio.Writer) (err error) {
+func (c Sub) Write(w *bufio.Writer) (err error) {
 	for _, s := range [...]string{
 		"SUB ",
 		c.Topic,

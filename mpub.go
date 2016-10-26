@@ -17,7 +17,7 @@ func (c MPub) Name() string {
 	return "MPUB"
 }
 
-func (c MPub) write(w *bufio.Writer) (err error) {
+func (c MPub) Write(w *bufio.Writer) (err error) {
 	for _, s := range [...]string{
 		"MPUB ",
 		c.Topic,

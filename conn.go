@@ -43,7 +43,7 @@ func DialTimeout(addr string, timeout time.Duration) (c *Conn, err error) {
 
 func (c *Conn) WriteFrame(f Frame) (err error) {
 	c.wmtx.Lock()
-	if err = f.write(c.wbuf); err == nil {
+	if err = f.Write(c.wbuf); err == nil {
 		err = c.wbuf.Flush()
 	}
 	c.wmtx.Unlock()

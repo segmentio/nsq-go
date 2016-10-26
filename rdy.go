@@ -15,7 +15,7 @@ func (c Rdy) Name() string {
 	return "RDY"
 }
 
-func (c Rdy) write(w *bufio.Writer) (err error) {
+func (c Rdy) Write(w *bufio.Writer) (err error) {
 	if _, err = w.WriteString("RDY "); err != nil {
 		err = errors.Wrap(err, "writing RDY command")
 		return

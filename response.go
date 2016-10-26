@@ -18,7 +18,7 @@ func (r Response) String() string {
 	return string(r)
 }
 
-func (r Response) write(w *bufio.Writer) (err error) {
+func (r Response) Write(w *bufio.Writer) (err error) {
 	if err = writeFrameHeader(w, FrameTypeResponse, len(r)); err != nil {
 		err = errors.WithMessage(err, "writing response message")
 	}

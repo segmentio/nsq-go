@@ -12,7 +12,7 @@ func testFrame(t *testing.T, f1 Frame) {
 	r := bufio.NewReader(b)
 	w := bufio.NewWriter(b)
 
-	if err := f1.write(w); err != nil {
+	if err := f1.Write(w); err != nil {
 		t.Errorf("write: %+v", err)
 		return
 	}

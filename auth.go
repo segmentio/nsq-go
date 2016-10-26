@@ -16,7 +16,7 @@ func (c Auth) Name() string {
 	return "AUTH"
 }
 
-func (c Auth) write(w *bufio.Writer) (err error) {
+func (c Auth) Write(w *bufio.Writer) (err error) {
 	if _, err = w.WriteString("AUTH\n"); err != nil {
 		err = errors.Wrap(err, "writing AUTH command")
 		return

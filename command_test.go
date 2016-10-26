@@ -17,7 +17,7 @@ func testCommand(t *testing.T, name string, c1 Command) {
 		return
 	}
 
-	if err := c1.write(w); err != nil {
+	if err := c1.Write(w); err != nil {
 		t.Errorf("write: %+v", err)
 		return
 	}

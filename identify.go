@@ -25,7 +25,7 @@ func (c Identify) Name() string {
 	return "IDENTIFY"
 }
 
-func (c Identify) write(w *bufio.Writer) (err error) {
+func (c Identify) Write(w *bufio.Writer) (err error) {
 	var data []byte
 
 	if data, err = json.Marshal(identifyBody{

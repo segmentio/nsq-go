@@ -17,7 +17,7 @@ const (
 )
 
 type Frame interface {
-	write(*bufio.Writer) error
+	Write(*bufio.Writer) error
 }
 
 type UnknownFrame struct {
@@ -54,7 +54,7 @@ func ReadFrame(r *bufio.Reader) (frame Frame, err error) {
 	}
 }
 
-func (f UnknownFrame) write(w *bufio.Writer) (err error) {
+func (f UnknownFrame) Write(w *bufio.Writer) (err error) {
 	if err = writeFrameHeader(w, f.Type, len(f.Data)); err != nil {
 		err = errors.WithMessage(err, "writing unknown frame")
 		return

@@ -14,7 +14,7 @@ func (c Fin) Name() string {
 	return "FIN"
 }
 
-func (c Fin) write(w *bufio.Writer) (err error) {
+func (c Fin) Write(w *bufio.Writer) (err error) {
 	if _, err = w.WriteString("FIN "); err != nil {
 		err = errors.Wrap(err, "writing FIN command")
 		return

@@ -17,7 +17,7 @@ func (c Req) Name() string {
 	return "REQ"
 }
 
-func (c Req) write(w *bufio.Writer) (err error) {
+func (c Req) Write(w *bufio.Writer) (err error) {
 	if _, err = w.WriteString("REQ "); err != nil {
 		err = errors.Wrap(err, "writing REQ command")
 		return

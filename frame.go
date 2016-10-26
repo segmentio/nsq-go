@@ -17,6 +17,8 @@ const (
 )
 
 type Frame interface {
+	FrameType() FrameType
+
 	Write(*bufio.Writer) error
 }
 
@@ -52,6 +54,10 @@ func ReadFrame(r *bufio.Reader) (frame Frame, err error) {
 	default:
 		return readUnknownFrame(FrameType(ftype), int(size), r)
 	}
+}
+
+func (f UnknownFrame) FrameType() FrameType {
+	return f.Type
 }
 
 func (f UnknownFrame) Write(w *bufio.Writer) (err error) {

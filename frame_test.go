@@ -22,8 +22,6 @@ func testFrame(t *testing.T, f1 Frame) {
 		return
 	}
 
-	t.Log(b.String())
-
 	if f2, err := ReadFrame(r); err != nil {
 		t.Errorf("read: %+v", err)
 	} else if !reflect.DeepEqual(f1, f2) {

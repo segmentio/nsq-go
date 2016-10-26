@@ -44,6 +44,10 @@ type Message struct {
 	Timestamp time.Time
 }
 
+func (m Message) FrameType() FrameType {
+	return FrameTypeMessage
+}
+
 func (m Message) Write(w *bufio.Writer) (err error) {
 	if err = writeFrameHeader(w, FrameTypeMessage, len(m.Body)+26); err != nil {
 		err = errors.WithMessage(err, "writing message")

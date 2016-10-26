@@ -41,9 +41,18 @@ func DialTimeout(addr string, timeout time.Duration) (c *Conn, err error) {
 	return
 }
 
-func (c *Conn) WriteFrame(f Frame) (err error) {
+func (c *Conn) WriteCommand(cmd Command) (err error) {
 	c.wmtx.Lock()
-	if err = f.Write(c.wbuf); err == nil {
+	if err = cmd.Write(c.wbuf); err == nil {
+		err = c.wbuf.Flush()
+	}
+	c.wmtx.Unlock()
+	return
+}
+
+func (c *Conn) WriteFrame(frame Frame) (err error) {
+	c.wmtx.Lock()
+	if err = frame.Write(c.wbuf); err == nil {
 		err = c.wbuf.Flush()
 	}
 	c.wmtx.Unlock()
@@ -57,9 +66,16 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	return
 }
 
-func (c *Conn) ReadFrame() (f Frame, err error) {
+func (c *Conn) ReadCommand() (cmd Command, err error) {
 	c.rmtx.Lock()
-	f, err = ReadFrame(c.rbuf)
+	cmd, err = ReadCommand(c.rbuf)
+	c.rmtx.Unlock()
+	return
+}
+
+func (c *Conn) ReadFrame() (frame Frame, err error) {
+	c.rmtx.Lock()
+	frame, err = ReadFrame(c.rbuf)
 	c.rmtx.Unlock()
 	return
 }

@@ -8,9 +8,9 @@ import (
 )
 
 type Command interface {
-	Frame
-
 	Name() string
+
+	Write(*bufio.Writer) error
 }
 
 func ReadCommand(r *bufio.Reader) (cmd Command, err error) {

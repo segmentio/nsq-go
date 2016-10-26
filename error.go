@@ -24,6 +24,10 @@ const (
 	ErrUnauthorized Error = Error("E_UNAUTHORIZED")
 )
 
+func (e Error) FrameType() FrameType {
+	return FrameTypeError
+}
+
 func (e Error) Error() string {
 	return string(e)
 }

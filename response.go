@@ -14,6 +14,10 @@ const (
 	CloseWait = Response("CLOSE_WAIT")
 )
 
+func (r Response) FrameType() FrameType {
+	return FrameTypeResponse
+}
+
 func (r Response) String() string {
 	return string(r)
 }

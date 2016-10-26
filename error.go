@@ -10,18 +10,18 @@ import (
 type Error string
 
 const (
-	ErrInvalid      Error = Error("E_INVALID")
-	ErrBadBody      Error = Error("E_BAD_BODY")
-	ErrBadTopic     Error = Error("E_BAD_TOPIC")
-	ErrBadChannel   Error = Error("E_BAD_CHANNEL")
-	ErrBadMessage   Error = Error("E_BAD_MESSAGE")
-	ErrPubFailed    Error = Error("E_PUB_FAILED")
-	ErrMPubFailed   Error = Error("E_MPUB_FAILED")
-	ErrFinFailed    Error = Error("E_FIN_FAILED")
-	ErrReqFailed    Error = Error("E_REQ_FAILED")
-	ErrTouchFailed  Error = Error("E_TOUCH_FAILED")
-	ErrAuthFailed   Error = Error("E_AUTH_FAILED")
-	ErrUnauthorized Error = Error("E_UNAUTHORIZED")
+	ErrInvalid      Error = "E_INVALID"
+	ErrBadBody      Error = "E_BAD_BODY"
+	ErrBadTopic     Error = "E_BAD_TOPIC"
+	ErrBadChannel   Error = "E_BAD_CHANNEL"
+	ErrBadMessage   Error = "E_BAD_MESSAGE"
+	ErrPubFailed    Error = "E_PUB_FAILED"
+	ErrMPubFailed   Error = "E_MPUB_FAILED"
+	ErrFinFailed    Error = "E_FIN_FAILED"
+	ErrReqFailed    Error = "E_REQ_FAILED"
+	ErrTouchFailed  Error = "E_TOUCH_FAILED"
+	ErrAuthFailed   Error = "E_AUTH_FAILED"
+	ErrUnauthorized Error = "E_UNAUTHORIZED"
 )
 
 func (e Error) FrameType() FrameType {

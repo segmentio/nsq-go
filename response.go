@@ -10,8 +10,8 @@ import (
 type Response string
 
 const (
-	OK        = Response("OK")
-	CloseWait = Response("CLOSE_WAIT")
+	OK        Response = "OK"
+	CloseWait Response = "CLOSE_WAIT"
 )
 
 func (r Response) FrameType() FrameType {

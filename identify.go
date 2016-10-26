@@ -16,8 +16,8 @@ type Identify struct {
 }
 
 type identifyBody struct {
-	ClientID  string `json:"client_id"`
-	Hostname  string `json:"hostname"`
+	ClientID  string `json:"client_id,omitempty"`
+	Hostname  string `json:"hostname,omitempty"`
 	UserAgent string `json:"user_agent,omitempty"`
 }
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"io"
+	"strconv"
 
 	"github.com/pkg/errors"
 )
@@ -15,6 +16,22 @@ const (
 	FrameTypeError    FrameType = 1
 	FrameTypeMessage  FrameType = 2
 )
+
+func (t FrameType) String() string {
+	switch t {
+	case FrameTypeResponse:
+		return "response"
+
+	case FrameTypeError:
+		return "error"
+
+	case FrameTypeMessage:
+		return "message"
+
+	default:
+		return "frame <" + strconv.Itoa(int(t)) + ">"
+	}
+}
 
 type Frame interface {
 	FrameType() FrameType

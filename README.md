@@ -25,7 +25,7 @@ func main() {
             "nsqlookup-002.service.local:4160",
             "nsqlookup-003.service.local:4160",
         },
-        MaxInFlights: 250,
+        MaxInFlight: 250,
     })
 
     // Consume messages, the consumer automatically connects to the nsqd nodes

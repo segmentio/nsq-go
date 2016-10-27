@@ -96,6 +96,11 @@ func lookup(topic string, addr string) (resp LookupResult, err error) {
 	dec = json.NewDecoder(res.Body)
 	err = dec.Decode(&v)
 
+	if v.StatusCode != 200 {
+		err = errors.Errorf("looking for topic %s returned %d %s", topic, v.StatusCode, v.StatusTxt)
+		return
+	}
+
 	resp = v.Data
 	return
 }

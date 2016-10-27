@@ -40,8 +40,16 @@ func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
 		return
 	}
 
+	type producerInfoKey struct {
+		BroadcastAddress string
+		Hostname         string
+		Version          string
+		TcpPort          int
+		HttpPort         int
+	}
+
 	channels := make(map[string]bool)
-	producers := make(map[ProducerInfo]bool)
+	producers := make(map[producerInfoKey]ProducerInfo)
 
 	for _, r := range retList {
 		v := struct {
@@ -60,7 +68,13 @@ func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
 		}
 
 		for _, p := range v.Data.Producers {
-			producers[p] = true
+			producers[producerInfoKey{
+				BroadcastAddress: p.BroadcastAddress,
+				Hostname:         p.Hostname,
+				Version:          p.Version,
+				TcpPort:          p.TcpPort,
+				HttpPort:         p.HttpPort,
+			}] = p
 		}
 	}
 
@@ -73,7 +87,7 @@ func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
 		result.Channels = append(result.Channels, c)
 	}
 
-	for p := range producers {
+	for _, p := range producers {
 		result.Producers = append(result.Producers, p)
 	}
 

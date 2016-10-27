@@ -10,19 +10,26 @@ import (
 	"github.com/pkg/errors"
 )
 
+// MessageID is used to represent NSQ message IDs.
 type MessageID uint64
 
-func ParseMessageID(hex string) (id MessageID, err error) {
+// ParseMessageID attempts to parse s, which should be an hexadecimal
+// representation of an 8 byte message ID.
+func ParseMessageID(s string) (id MessageID, err error) {
 	var v uint64
-	v, err = strconv.ParseUint(hex, 16, 64)
+	v, err = strconv.ParseUint(s, 16, 64)
 	id = MessageID(v)
 	return
 }
 
+// String returns the hexadecimal representation of the message ID as a string.
 func (id MessageID) String() string {
 	return strconv.FormatUint(uint64(id), 16)
 }
 
+// WriteTo writes the message ID to w.
+//
+// This method satisfies the io.WriterTo interface.
 func (id MessageID) WriteTo(w io.Writer) (int64, error) {
 	a := [16]byte{}
 	b := strconv.AppendUint(a[:0], uint64(id), 16)
@@ -37,16 +44,29 @@ func (id MessageID) WriteTo(w io.Writer) (int64, error) {
 	return int64(c), e
 }
 
+// Message is a frame type representing a NSQ message.
 type Message struct {
-	ID        MessageID
-	Attempts  uint16
-	Body      []byte
+	// The ID of the message.
+	ID MessageID
+
+	// Attempts is set to the number of attempts made to deliver the message.
+	Attempts uint16
+
+	// Body contains the raw data of the message frame.
+	Body []byte
+
+	// Timestamp is the time at which the message was published.
 	Timestamp time.Time
 
 	// Unexported fields set by the consumer connections.
 	cmdChan chan<- Command
 }
 
+// Finish must be called on every message received from a consumer to let the
+// NSQ server know that the message was successfully processed.
+//
+// One of Finish or Request should be called on every message, and the methods
+// will panic if they are called more than once.
 func (m *Message) Finish() {
 	if m.cmdChan == nil {
 		panic("(*Message).Finish or (*Message).Requeue has already been called")
@@ -56,6 +76,13 @@ func (m *Message) Finish() {
 	m.cmdChan = nil
 }
 
+// Requeue must be called on messages received from a consumer to let the NSQ
+// server know that the message could not be proessed and should be retried.
+// The timeout is the amount of time the NSQ server waits before offering this
+// message again to its consumers.
+//
+// One of Finish or Request should be called on every message, and the methods
+// will panic if they are called more than once.
 func (m *Message) Requeue(timeout time.Duration) {
 	if m.cmdChan == nil {
 		panic("(*Message).Finish or (*Message).Requeue has already been called")
@@ -65,10 +92,13 @@ func (m *Message) Requeue(timeout time.Duration) {
 	m.cmdChan = nil
 }
 
+// FrameType returns FrameTypeMessage, satisfies the Frame interface.
 func (m Message) FrameType() FrameType {
 	return FrameTypeMessage
 }
 
+// Write serializes the frame to the given buffered output, satisfies the Frame
+// interface.
 func (m Message) Write(w *bufio.Writer) (err error) {
 	if err = writeFrameHeader(w, FrameTypeMessage, len(m.Body)+26); err != nil {
 		err = errors.WithMessage(err, "writing message")

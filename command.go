@@ -10,12 +10,10 @@ import (
 // The Command interface is implemented by types that represent the different
 // commands of the NSQ protocol.
 type Command interface {
-	// Name returns the name of the command in order to satisfy the Command
-	// interface.
+	// Name returns the name of the command.
 	Name() string
 
-	// Write serializes the command to the given buffered output, satisfies the
-	// Command interface.
+	// Write serializes the command to the given buffered output.
 	Write(*bufio.Writer) error
 }
 
@@ -24,6 +22,7 @@ type Command interface {
 //
 //	if cmd, err := nsq.ReadCommand(r); err != nil {
 //		// handle the error
+//		...
 //	} else {
 //		switch c := cmd.(type) {
 //		case nsq.Pub:

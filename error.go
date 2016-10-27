@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Error is a frame type representing error responses to commands.
 type Error string
 
 const (
@@ -24,18 +25,23 @@ const (
 	ErrUnauthorized Error = "E_UNAUTHORIZED"
 )
 
-func (e Error) FrameType() FrameType {
-	return FrameTypeError
-}
-
+// String returns the error as a string, satisfies the error interface.
 func (e Error) Error() string {
 	return string(e)
 }
 
+// String returns the error as a string.
 func (e Error) String() string {
 	return string(e)
 }
 
+// FrameType returns FrameTypeError, satisfies the Frame interface.
+func (e Error) FrameType() FrameType {
+	return FrameTypeError
+}
+
+// Write serializes the frame to the given buffered output, satisfies the Frame
+// interface.
 func (e Error) Write(w *bufio.Writer) (err error) {
 	if err = writeFrameHeader(w, FrameTypeError, len(e)); err != nil {
 		err = errors.WithMessage(err, "writing error message")

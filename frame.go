@@ -9,14 +9,24 @@ import (
 	"github.com/pkg/errors"
 )
 
+// FrameType is used to represent the different types of frames that a consumer
+// may receive.
 type FrameType int
 
 const (
+	// FrameTypeResponse is the code for frames that carry success responses to
+	// commands.
 	FrameTypeResponse FrameType = 0
-	FrameTypeError    FrameType = 1
-	FrameTypeMessage  FrameType = 2
+
+	// FrameTypeError is the code for frames that carry error responses to
+	// commands.
+	FrameTypeError FrameType = 1
+
+	// FrameTypeMessage is the code for frames that carry messages.
+	FrameTypeMessage FrameType = 2
 )
 
+// String returns a human-readable representation of the frame type.
 func (t FrameType) String() string {
 	switch t {
 	case FrameTypeResponse:
@@ -33,17 +43,29 @@ func (t FrameType) String() string {
 	}
 }
 
+// The Frame interface is implemented by types that represent the different
+// types of frames that a consumer may receive.
 type Frame interface {
+	// FrameType returns the code representing the frame type.
 	FrameType() FrameType
 
+	// Write serializes the frame to the given buffered output.
 	Write(*bufio.Writer) error
 }
 
-type UnknownFrame struct {
-	Type FrameType
-	Data []byte
-}
-
+// ReadFrame reads a frame from the buffer input r, returning it or an error if
+// something went wrong.
+//
+//	if frame, err := ReadFrame(r); err != nil {
+//		// handle the error
+//		...
+//	} else {
+//		switch f := frame.(type) {
+//		case nsq.Message:
+//			...
+//		}
+//	}
+//
 func ReadFrame(r *bufio.Reader) (frame Frame, err error) {
 	var size int32
 	var ftype int32
@@ -73,10 +95,24 @@ func ReadFrame(r *bufio.Reader) (frame Frame, err error) {
 	}
 }
 
+// UnknownFrame is used to represent frames of unknown types for which the
+// library has no special implementation.
+type UnknownFrame struct {
+	// Type is the type of the frame.
+	Type FrameType
+
+	// Data contains the raw data of the frame.
+	Data []byte
+}
+
+// FrameType returns the code representing the frame type, satisfies the Frame
+// interface.
 func (f UnknownFrame) FrameType() FrameType {
 	return f.Type
 }
 
+// Write serializes the frame to the given buffered output, satisfies the Frame
+// interface.
 func (f UnknownFrame) Write(w *bufio.Writer) (err error) {
 	if err = writeFrameHeader(w, f.Type, len(f.Data)); err != nil {
 		err = errors.WithMessage(err, "writing unknown frame")

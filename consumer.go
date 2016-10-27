@@ -143,7 +143,10 @@ func (c *Consumer) pulse() (err error) {
 
 	for _, addr := range nodes {
 		if _, exists := c.conns[addr]; !exists {
-			c.openConn(addr)
+			cmdChan := make(chan Command, c.maxInFlight)
+			c.conns[addr] = cmdChan
+			c.join.Add(1)
+			go c.runConn(addr, cmdChan)
 		}
 	}
 
@@ -159,16 +162,6 @@ func (c *Consumer) close() {
 	}
 
 	c.mtx.Unlock()
-	return
-}
-
-func (c *Consumer) openConn(addr string) {
-	cmdChan := make(chan Command, c.maxInFlight)
-	c.mtx.Lock()
-	c.conns[addr] = cmdChan
-	c.mtx.Unlock()
-	c.join.Add(1)
-	go c.runConn(addr, cmdChan)
 	return
 }
 

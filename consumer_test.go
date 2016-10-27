@@ -21,9 +21,7 @@ func TestConsumer(t *testing.T) {
 				nodes[i] = &Client{Address: addr}
 
 				// stack cleanup callbacks
-				defer func(i int) {
-					nodes[i].DeleteTopic(topic)
-				}(i)
+				defer nodes[i].DeleteTopic(topic)
 			}
 
 			// Publish messages to the NSQ nodes in a round robin fashion.
@@ -76,5 +74,61 @@ func TestConsumer(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRequeue(t *testing.T) {
+	c := &Client{Address: "localhost:4151"}
+
+	if err := c.Publish("test-requeue", []byte("Hello World!")); err != nil {
+		t.Error(err)
+		return
+	}
+	defer c.DeleteTopic("test-requeue")
+
+	consumer, _ := StartConsumer(ConsumerConfig{
+		Topic:   "test-requeue",
+		Channel: "channel",
+		Lookup:  nsqlookup,
+	})
+	defer consumer.Stop()
+
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+
+	for i := 1; i <= 10; i++ {
+		select {
+		case msg := <-consumer.Messages():
+			if msg.Attempts != uint16(i) {
+				t.Error("invalid attempt count:", msg.Attempts, "!=", i)
+			}
+
+			if s := string(msg.Body); s != "Hello World!" {
+				t.Error("invalid message body:", s)
+			}
+
+			msg.Requeue(NoTimeout)
+
+		case <-deadline.C:
+			t.Error("timeout")
+			return
+		}
+	}
+
+	select {
+	case msg := <-consumer.Messages():
+		msg.Finish()
+
+	case <-deadline.C:
+		t.Error("timeout")
+		return
+	}
+
+	consumer.Stop()
+
+	// Make sure the channel gets closed at some point.
+	for msg := range consumer.Messages() {
+		t.Error("unexpected message:", msg)
+		msg.Finish()
 	}
 }

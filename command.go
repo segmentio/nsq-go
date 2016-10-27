@@ -42,9 +42,9 @@ func ReadCommand(r *bufio.Reader) (cmd Command, err error) {
 	if n := len(line); n == 0 || line[n-1] != '\n' {
 		err = errors.New("missing newline at the end of a command")
 		return
+	} else {
+		line = line[:n-1]
 	}
-
-	line = line[:n-1]
 
 	if line == "IDENTIFY" {
 		return readIdentify(r)

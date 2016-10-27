@@ -1,9 +1,12 @@
 package nsq
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"io/ioutil"
 	"net/http"
-	"strings"
+	"net/url"
 	"time"
 
 	"github.com/pkg/errors"
@@ -23,98 +26,44 @@ type LookupResult struct {
 	Producers []ProducerInfo `json:"producers"`
 }
 
-type lookupResult struct {
-	LookupResult
-	error
+type LookupClient struct {
+	http.Client
+	Addresses []string
+	Scheme    string
+	UserAgent string
 }
 
-func Lookup(topic string, addrs ...string) (result LookupResult, err error) {
-	n := len(addrs)
+func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
+	var retList []io.ReadCloser
 
-	if n == 0 {
-		err = errors.New("missing addresses when looking up topic " + topic)
+	if retList, err = c.doAll("GET", "/lookup", url.Values{"topic": []string{topic}}, nil); len(retList) == 0 {
 		return
 	}
 
-	resultList := make([]LookupResult, 0, n)
-	resultChan := make(chan lookupResult, n)
-	deadline := time.NewTimer(DefaultLookupTimeout)
-	defer deadline.Stop()
-
-	for _, addr := range addrs {
-		go lookupAsync(topic, addr, resultChan)
-	}
-
-resultLoop:
-	for i := 0; i != n; i++ {
-		select {
-		case r := <-resultChan:
-			if r.error != nil {
-				err = r.error
-			} else {
-				resultList = append(resultList, r.LookupResult)
-			}
-
-		case <-deadline.C:
-			if i == 0 {
-				err = errors.New("no response came back when looking up topic " + topic)
-			}
-			break resultLoop
-		}
-	}
-
-	result = mergeLookupResults(resultList)
-	return
-}
-
-func lookupAsync(topic string, addr string, resultChan chan<- lookupResult) {
-	result, err := lookup(topic, addr)
-	resultChan <- lookupResult{result, err}
-}
-
-func lookup(topic string, addr string) (result LookupResult, err error) {
-	var res *http.Response
-	var dec *json.Decoder
-
-	if !strings.HasPrefix(addr, "http://") {
-		addr = "http://" + addr
-	}
-
-	if res, err = http.Get(addr + "/lookup?topic=" + topic); err != nil {
-		err = errors.Wrap(err, "looking up topic "+topic+" on http://"+addr)
-		return
-	}
-
-	defer res.Body.Close()
-
-	v := struct {
-		StatusCode int          `json:"status_code"`
-		StatusTxt  string       `json:"status_txt"`
-		Data       LookupResult `json:"data"`
-	}{}
-
-	dec = json.NewDecoder(res.Body)
-	err = dec.Decode(&v)
-
-	if v.StatusCode != 200 {
-		err = errors.Errorf("looking for topic %s returned %d %s", topic, v.StatusCode, v.StatusTxt)
-		return
-	}
-
-	result = v.Data
-	return
-}
-
-func mergeLookupResults(resultList []LookupResult) (result LookupResult) {
 	channels := make(map[string]bool)
 	producers := make(map[ProducerInfo]bool)
 
-	for _, r := range resultList {
-		for _, c := range r.Channels {
+	for _, r := range retList {
+		v := struct {
+			StatusCode int          `json:"status_code"`
+			StatusTxt  string       `json:"status_txt"`
+			Data       LookupResult `json:"data"`
+		}{}
+
+		d := json.NewDecoder(r)
+		e := d.Decode(&v)
+		r.Close()
+
+		if e != nil {
+			err = appendError(err, e)
+			continue
+		}
+
+		for _, c := range v.Data.Channels {
 			channels[c] = true
 		}
 
-		for _, p := range r.Producers {
+		for _, p := range v.Data.Producers {
 			producers[p] = true
 		}
 	}
@@ -132,5 +81,102 @@ func mergeLookupResults(resultList []LookupResult) (result LookupResult) {
 		result.Producers = append(result.Producers, p)
 	}
 
+	return
+}
+
+func (c *LookupClient) doAll(method string, path string, query url.Values, data []byte) (ret []io.ReadCloser, err error) {
+	addrs := c.Addresses
+
+	if len(addrs) == 0 {
+		addrs = []string{"localhost:4161"}
+	}
+
+	retChan := make(chan io.ReadCloser, len(addrs))
+	errChan := make(chan error, len(addrs))
+	timeout := c.Client.Timeout
+
+	if timeout == 0 {
+		timeout = DefaultDialTimeout + DefaultReadTimeout + DefaultWriteTimeout
+	}
+
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+
+	for _, addr := range addrs {
+		go c.doAsync(addr, method, path, query, data, retChan, errChan)
+	}
+
+	for i, n := 0, len(addrs); i != n; i++ {
+		select {
+		case r := <-retChan:
+			ret = append(ret, r)
+
+		case e := <-errChan:
+			err = appendError(err, e)
+
+		case <-deadline.C:
+			err = appendError(err, errors.New("timeout"))
+			return
+		}
+	}
+
+	return
+}
+
+func (c *LookupClient) doAsync(host string, method string, path string, query url.Values, data []byte, ret chan<- io.ReadCloser, err chan<- error) {
+	if r, e := c.do(host, method, path, query, data); e != nil {
+		err <- e
+	} else {
+		ret <- r
+	}
+}
+
+func (c *LookupClient) do(host string, method string, path string, query url.Values, data []byte) (ret io.ReadCloser, err error) {
+	var res *http.Response
+	var scheme = c.Scheme
+	var userAgent = c.UserAgent
+	var body io.ReadCloser
+
+	if len(scheme) == 0 {
+		scheme = "http"
+	}
+
+	if len(userAgent) == 0 {
+		userAgent = DefaultUserAgent
+	}
+
+	if len(data) != 0 {
+		body = ioutil.NopCloser(bytes.NewReader(data))
+	}
+
+	if res, err = c.Do(&http.Request{
+		Method: method,
+		URL: &url.URL{
+			Scheme:   scheme,
+			Host:     host,
+			Path:     path,
+			RawQuery: query.Encode(),
+		},
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        http.Header{"User-Agent": []string{userAgent}},
+		Body:          body,
+		Host:          host,
+		ContentLength: int64(len(data)),
+	}); err != nil {
+		err = errors.Wrapf(err, "%s %s://%s?%s", method, scheme, host, query.Encode())
+		return
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		res.Body.Close()
+		err = errors.Errorf("%s %s://%s?%s: %d %s", method, scheme, host, query.Encode(), res.StatusCode, res.Status)
+		return
+	}
+
+	ret = res.Body
 	return
 }

@@ -3,6 +3,7 @@ package nsq
 import (
 	"bufio"
 	"io"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -66,4 +67,30 @@ func readError(n int, r *bufio.Reader) (e Error, err error) {
 
 	e = Error(data)
 	return
+}
+
+type errorList []error
+
+func (e errorList) Error() string {
+	list := make([]string, 0, len(e))
+
+	for _, err := range e {
+		list = append(list, err.Error())
+	}
+
+	return strings.Join(list, "; ")
+}
+
+func appendError(errList error, err error) error {
+	if err == nil {
+		return errList
+	}
+	switch e := errList.(type) {
+	case errorList:
+		return append(e, err)
+	case error:
+		return errorList{e, err}
+	default:
+		return errorList{err}
+	}
 }

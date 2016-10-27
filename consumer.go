@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -130,9 +131,13 @@ func (c *Consumer) pulse() (err error) {
 	} else {
 		var res LookupResult
 
-		if res, err = Lookup(c.topic, c.lookup...); err != nil {
-			return
-		}
+		// Let the error propagate to the caller but if the result is not empty
+		// we still want to process it.
+		res, err = (&LookupClient{
+			Client:    http.Client{Timeout: c.dialTimeout + c.readTimeout + c.writeTimeout},
+			Addresses: c.lookup,
+			UserAgent: c.identify.UserAgent,
+		}).Lookup(c.topic)
 
 		for _, p := range res.Producers {
 			nodes = append(nodes, net.JoinHostPort(p.RemoteAddress, strconv.Itoa(p.TcpPort)))

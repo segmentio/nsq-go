@@ -17,15 +17,101 @@ type Client struct {
 	UserAgent string
 }
 
-func (c *Client) CreateTopic(topic string) (err error) {
-	var ret io.ReadCloser
+func (c *Client) Ping() error {
+	return c.call("GET", "/ping", nil)
+}
 
-	if ret, err = c.do("POST", "/topic/create", url.Values{"topic": []string{topic}}, nil); err != nil {
-		return
+func (c *Client) Publish(topic string, message []byte) error {
+	ret, err := c.do("POST", "/pub", url.Values{
+		"topic": []string{topic},
+	}, message)
+	if ret != nil {
+		ret.Close()
 	}
+	return err
+}
 
-	ret.Close()
-	return
+func (c *Client) MutliPublish(topic string, messages ...[]byte) error {
+	ret, err := c.do("POST", "/mpub", url.Values{
+		"topic": []string{topic},
+	}, bytes.Join(messages, []byte("\n")))
+	if ret != nil {
+		ret.Close()
+	}
+	return err
+}
+
+func (c *Client) CreateTopic(topic string) error {
+	return c.call("POST", "/topic/create", url.Values{
+		"topic": []string{topic},
+	})
+}
+
+func (c *Client) DeleteTopic(topic string) error {
+	return c.call("POST", "/topic/delete", url.Values{
+		"topic": []string{topic},
+	})
+}
+
+func (c *Client) EmptyTopic(topic string) error {
+	return c.call("POST", "/topic/empty", url.Values{
+		"topic": []string{topic},
+	})
+}
+
+func (c *Client) PauseTopic(topic string) error {
+	return c.call("POST", "/topic/pause", url.Values{
+		"topic": []string{topic},
+	})
+}
+
+func (c *Client) UnpauseTopic(topic string) error {
+	return c.call("POST", "/topic/unpause", url.Values{
+		"topic": []string{topic},
+	})
+}
+
+func (c *Client) CreateChannel(topic string, channel string) error {
+	return c.call("POST", "/channel/create", url.Values{
+		"topic":   []string{topic},
+		"channel": []string{channel},
+	})
+}
+
+func (c *Client) DeleteChannel(topic string, channel string) error {
+	return c.call("POST", "/channel/delete", url.Values{
+		"topic":   []string{topic},
+		"channel": []string{channel},
+	})
+}
+
+func (c *Client) EmptyChannel(topic string, channel string) error {
+	return c.call("POST", "/channel/empty", url.Values{
+		"topic":   []string{topic},
+		"channel": []string{channel},
+	})
+}
+
+func (c *Client) PauseChannel(topic string, channel string) error {
+	return c.call("POST", "/channel/pause", url.Values{
+		"topic":   []string{topic},
+		"channel": []string{channel},
+	})
+}
+
+func (c *Client) UnpauseChannel(topic string, channel string) error {
+	return c.call("POST", "/channel/unpause", url.Values{
+		"topic":   []string{topic},
+		"channel": []string{channel},
+	})
+}
+
+func (c *Client) call(method string, path string, query url.Values) error {
+	ret, err := c.do(method, path, query, nil)
+	if ret != nil {
+		ret.Close()
+	}
+	return err
 }
 
 func (c *Client) do(method string, path string, query url.Values, data []byte) (ret io.ReadCloser, err error) {
@@ -59,10 +145,13 @@ func (c *Client) do(method string, path string, query url.Values, data []byte) (
 			Path:     path,
 			RawQuery: query.Encode(),
 		},
-		Proto:         "HTTP/1.1",
-		ProtoMajor:    1,
-		ProtoMinor:    1,
-		Header:        http.Header{"User-Agent": []string{userAgent}},
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header: http.Header{
+			"Content-Type": []string{"application/octet-stream"},
+			"User-Agent":   []string{userAgent},
+		},
 		Body:          body,
 		Host:          host,
 		ContentLength: int64(len(data)),

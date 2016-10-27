@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type LookupProducer struct {
+type ProducerInfo struct {
 	BroadcastAddress string `json:"broadcast_address,omitempty"`
 	RemoteAddress    string `json:"remote_address,omitempty"`
 	Hostname         string `json:"hostname,omitempty"`
@@ -18,29 +18,29 @@ type LookupProducer struct {
 	HttpPort         int    `json:"http_port"`
 }
 
-type LookupTopicResponse struct {
-	Channels  []string         `json:"channels"`
-	Producers []LookupProducer `json:"producers"`
+type LookupResult struct {
+	Channels  []string       `json:"channels"`
+	Producers []ProducerInfo `json:"producers"`
 }
 
-type lookupTopicResponse struct {
-	LookupTopicResponse
+type lookupResult struct {
+	LookupResult
 	error
 }
 
-func LookupTopic(topic string, addrs ...string) (resp LookupTopicResponse, err error) {
+func Lookup(topic string, addrs ...string) (resp LookupResult, err error) {
 	if len(addrs) == 0 {
 		err = errors.New("missing addresses when looking up topic " + topic)
 		return
 	}
 
-	respList := make([]LookupTopicResponse, 0, len(addrs))
-	respChan := make(chan lookupTopicResponse, len(addrs))
+	respList := make([]LookupResult, 0, len(addrs))
+	respChan := make(chan lookupResult, len(addrs))
 	deadline := time.NewTimer(DefaultLookupTimeout)
 	defer deadline.Stop()
 
 	for _, addr := range addrs {
-		go lookupTopicAsync(topic, addr, respChan)
+		go lookupAsync(topic, addr, respChan)
 	}
 
 respLoop:
@@ -50,7 +50,7 @@ respLoop:
 			if r.error != nil {
 				err = r.error
 			} else {
-				respList = append(respList, r.LookupTopicResponse)
+				respList = append(respList, r.LookupResult)
 			}
 
 		case <-deadline.C:
@@ -61,16 +61,16 @@ respLoop:
 		}
 	}
 
-	resp = mergeLookupTopicResponses(respList)
+	resp = mergeLookupResults(respList)
 	return
 }
 
-func lookupTopicAsync(topic string, addr string, respChan chan<- lookupTopicResponse) {
-	resp, err := lookupTopic(topic, addr)
-	respChan <- lookupTopicResponse{resp, err}
+func lookupAsync(topic string, addr string, respChan chan<- lookupResult) {
+	resp, err := lookup(topic, addr)
+	respChan <- lookupResult{resp, err}
 }
 
-func lookupTopic(topic string, addr string) (resp LookupTopicResponse, err error) {
+func lookup(topic string, addr string) (resp LookupResult, err error) {
 	var res *http.Response
 	var dec *json.Decoder
 
@@ -86,9 +86,9 @@ func lookupTopic(topic string, addr string) (resp LookupTopicResponse, err error
 	defer res.Body.Close()
 
 	v := struct {
-		StatusCode int                 `json:"status_code"`
-		StatusTxt  string              `json:"status_txt"`
-		Data       LookupTopicResponse `json:"data"`
+		StatusCode int          `json:"status_code"`
+		StatusTxt  string       `json:"status_txt"`
+		Data       LookupResult `json:"data"`
 	}{}
 
 	dec = json.NewDecoder(res.Body)
@@ -98,9 +98,9 @@ func lookupTopic(topic string, addr string) (resp LookupTopicResponse, err error
 	return
 }
 
-func mergeLookupTopicResponses(respList []LookupTopicResponse) (resp LookupTopicResponse) {
+func mergeLookupResults(respList []LookupResult) (resp LookupResult) {
 	channels := make(map[string]bool)
-	producers := make(map[LookupProducer]bool)
+	producers := make(map[ProducerInfo]bool)
 
 	for _, r := range respList {
 		for _, c := range r.Channels {
@@ -112,9 +112,9 @@ func mergeLookupTopicResponses(respList []LookupTopicResponse) (resp LookupTopic
 		}
 	}
 
-	resp = LookupTopicResponse{
+	resp = LookupResult{
 		Channels:  make([]string, 0, len(channels)),
-		Producers: make([]LookupProducer, 0, len(producers)),
+		Producers: make([]ProducerInfo, 0, len(producers)),
 	}
 
 	for c := range channels {

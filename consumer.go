@@ -128,9 +128,9 @@ func (c *Consumer) pulse() (err error) {
 	if len(c.lookup) == 0 {
 		nodes = []string{c.address}
 	} else {
-		var res LookupTopicResponse
+		var res LookupResult
 
-		if res, err = LookupTopic(c.topic, c.lookup...); err != nil {
+		if res, err = Lookup(c.topic, c.lookup...); err != nil {
 			return
 		}
 

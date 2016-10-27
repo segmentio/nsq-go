@@ -65,7 +65,7 @@ type Message struct {
 // Finish must be called on every message received from a consumer to let the
 // NSQ server know that the message was successfully processed.
 //
-// One of Finish or Request should be called on every message, and the methods
+// One of Finish or Requeue should be called on every message, and the methods
 // will panic if they are called more than once.
 func (m *Message) Finish() {
 	if m.cmdChan == nil {
@@ -81,7 +81,7 @@ func (m *Message) Finish() {
 // The timeout is the amount of time the NSQ server waits before offering this
 // message again to its consumers.
 //
-// One of Finish or Request should be called on every message, and the methods
+// One of Finish or Requeue should be called on every message, and the methods
 // will panic if they are called more than once.
 func (m *Message) Requeue(timeout time.Duration) {
 	if m.cmdChan == nil {

@@ -14,12 +14,12 @@ const (
 	// OK is returned for most successful responses.
 	OK Response = "OK"
 
+	// CloseWait is the response sent to the CLS command.
+	CloseWait Response = "CLOSE_WAIT"
+
 	// Heartbeat is the response used by NSQ servers for health checks of the
 	// connections.
 	Heartbeat Response = "_heartbeat_"
-
-	// CloseWait is the response sent to the CLS command.
-	CloseWait Response = "CLOSE_WAIT"
 )
 
 // String returns the response as a string.

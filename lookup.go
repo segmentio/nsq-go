@@ -29,13 +29,15 @@ type lookupResult struct {
 }
 
 func Lookup(topic string, addrs ...string) (resp LookupResult, err error) {
-	if len(addrs) == 0 {
+	n := len(addrs)
+
+	if n == 0 {
 		err = errors.New("missing addresses when looking up topic " + topic)
 		return
 	}
 
-	respList := make([]LookupResult, 0, len(addrs))
-	respChan := make(chan lookupResult, len(addrs))
+	respList := make([]LookupResult, 0, n)
+	respChan := make(chan lookupResult, n)
 	deadline := time.NewTimer(DefaultLookupTimeout)
 	defer deadline.Stop()
 
@@ -44,7 +46,7 @@ func Lookup(topic string, addrs ...string) (resp LookupResult, err error) {
 	}
 
 respLoop:
-	for i := 0; i != len(addrs); i++ {
+	for i := 0; i != n; i++ {
 		select {
 		case r := <-respChan:
 			if r.error != nil {

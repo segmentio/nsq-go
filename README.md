@@ -21,9 +21,9 @@ func main() {
         Topic:   "hello",
         Channel: "world",
         Lookup:  []string{
-            "nsqlookup-001.service.local:4160",
-            "nsqlookup-002.service.local:4160",
-            "nsqlookup-003.service.local:4160",
+            "nsqlookup-001.service.local:4161",
+            "nsqlookup-002.service.local:4161",
+            "nsqlookup-003.service.local:4161",
         },
         MaxInFlight: 250,
     })

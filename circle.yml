@@ -23,3 +23,9 @@ test:
       --volume ${PWD}:/go/src/github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}
       --workdir /go/src/github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}
       segment/golang:latest
+
+deployment:
+  release:
+    tag: /.*/
+    commands:
+      - 'true'

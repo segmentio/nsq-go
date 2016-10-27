@@ -28,7 +28,7 @@ type lookupResult struct {
 	error
 }
 
-func Lookup(topic string, addrs ...string) (resp LookupResult, err error) {
+func Lookup(topic string, addrs ...string) (result LookupResult, err error) {
 	n := len(addrs)
 
 	if n == 0 {
@@ -36,43 +36,43 @@ func Lookup(topic string, addrs ...string) (resp LookupResult, err error) {
 		return
 	}
 
-	respList := make([]LookupResult, 0, n)
-	respChan := make(chan lookupResult, n)
+	resultList := make([]LookupResult, 0, n)
+	resultChan := make(chan lookupResult, n)
 	deadline := time.NewTimer(DefaultLookupTimeout)
 	defer deadline.Stop()
 
 	for _, addr := range addrs {
-		go lookupAsync(topic, addr, respChan)
+		go lookupAsync(topic, addr, resultChan)
 	}
 
-respLoop:
+resultLoop:
 	for i := 0; i != n; i++ {
 		select {
-		case r := <-respChan:
+		case r := <-resultChan:
 			if r.error != nil {
 				err = r.error
 			} else {
-				respList = append(respList, r.LookupResult)
+				resultList = append(resultList, r.LookupResult)
 			}
 
 		case <-deadline.C:
 			if i == 0 {
 				err = errors.New("no response came back when looking up topic " + topic)
 			}
-			break respLoop
+			break resultLoop
 		}
 	}
 
-	resp = mergeLookupResults(respList)
+	result = mergeLookupResults(resultList)
 	return
 }
 
-func lookupAsync(topic string, addr string, respChan chan<- lookupResult) {
-	resp, err := lookup(topic, addr)
-	respChan <- lookupResult{resp, err}
+func lookupAsync(topic string, addr string, resultChan chan<- lookupResult) {
+	result, err := lookup(topic, addr)
+	resultChan <- lookupResult{result, err}
 }
 
-func lookup(topic string, addr string) (resp LookupResult, err error) {
+func lookup(topic string, addr string) (result LookupResult, err error) {
 	var res *http.Response
 	var dec *json.Decoder
 
@@ -101,15 +101,15 @@ func lookup(topic string, addr string) (resp LookupResult, err error) {
 		return
 	}
 
-	resp = v.Data
+	result = v.Data
 	return
 }
 
-func mergeLookupResults(respList []LookupResult) (resp LookupResult) {
+func mergeLookupResults(resultList []LookupResult) (result LookupResult) {
 	channels := make(map[string]bool)
 	producers := make(map[ProducerInfo]bool)
 
-	for _, r := range respList {
+	for _, r := range resultList {
 		for _, c := range r.Channels {
 			channels[c] = true
 		}
@@ -119,17 +119,17 @@ func mergeLookupResults(respList []LookupResult) (resp LookupResult) {
 		}
 	}
 
-	resp = LookupResult{
+	result = LookupResult{
 		Channels:  make([]string, 0, len(channels)),
 		Producers: make([]ProducerInfo, 0, len(producers)),
 	}
 
 	for c := range channels {
-		resp.Channels = append(resp.Channels, c)
+		result.Channels = append(result.Channels, c)
 	}
 
 	for p := range producers {
-		resp.Producers = append(resp.Producers, p)
+		result.Producers = append(result.Producers, p)
 	}
 
 	return

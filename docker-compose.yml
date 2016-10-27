@@ -1,0 +1,73 @@
+version: '2'
+
+# Use this docker-compose file to setup the test environment before running the
+# tests.
+services:
+  nsqlookupd-1:
+    image: nsqio/nsq
+    command: >
+      /nsqlookupd
+      -tcp-address :4160
+      -http-address :4161
+    ports:
+      - 4160
+      - 4161
+
+  nsqlookupd-2:
+    image: nsqio/nsq
+    command: >
+      /nsqlookupd
+      -tcp-address :4170
+      -http-address :4171
+    ports:
+      - 4170
+      - 4171
+
+  nsqlookupd-3:
+    image: nsqio/nsq
+    command: >
+      /nsqlookupd
+      -tcp-address :4180
+      -http-address :4181
+    ports:
+      - 4180
+      - 4181
+
+  nsqd-1:
+    image: nsqio/nsq
+    command: >
+      /nsqd
+      -tcp-address :4130
+      -http-address :4131
+      -lookupd-tcp-address nsqlookupd-1:4160
+      -lookupd-tcp-address nsqlookupd-2:4170
+      -lookupd-tcp-address nsqlookupd-3:4180
+    ports:
+      - 4130
+      - 4131
+
+  nsqd-2:
+    image: nsqio/nsq
+    command: >
+      /nsqd
+      -tcp-address :4140
+      -http-address :4141
+      -lookupd-tcp-address nsqlookupd-1:4160
+      -lookupd-tcp-address nsqlookupd-2:4170
+      -lookupd-tcp-address nsqlookupd-3:4180
+    ports:
+      - 4140
+      - 4141
+
+  nsqd-3:
+    image: nsqio/nsq
+    command: >
+      /nsqd
+      -tcp-address :4150
+      -http-address :4151
+      -lookupd-tcp-address nsqlookupd-1:4160
+      -lookupd-tcp-address nsqlookupd-2:4170
+      -lookupd-tcp-address nsqlookupd-3:4180
+    ports:
+      - 4150
+      - 4151

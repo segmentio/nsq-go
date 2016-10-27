@@ -13,9 +13,8 @@ import (
 
 type Consumer struct {
 	// Communication channels of the consumer.
-	msgs  chan Message  // messages read from the connections
-	close chan struct{} // closed when the consumer is shutdown
-	done  chan struct{} // closed when the consumer is not running anymore
+	msgs chan Message  // messages read from the connections
+	done chan struct{} // closed when the consumer is shutdown
 
 	// Immutable state of the consumer.
 	topic        string
@@ -74,9 +73,8 @@ func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
 	}
 
 	c = &Consumer{
-		msgs:  make(chan Message, config.MaxInFlight),
-		close: make(chan struct{}),
-		done:  make(chan struct{}),
+		msgs: make(chan Message, config.MaxInFlight),
+		done: make(chan struct{}),
 
 		topic:        config.Topic,
 		channel:      config.Channel,
@@ -95,41 +93,19 @@ func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
 	return
 }
 
-func (c *Consumer) Close() (err error) {
-	err = c.Shutdown()
-	c.stop()
-	c.wait()
-	return
-}
-
-func (c *Consumer) Shutdown() (err error) {
-	c.mtx.Lock()
-
-	for _, cmdChan := range c.conns {
-		cmdChan <- Cls{}
-	}
-
-	c.mtx.Unlock()
-	return
+func (c *Consumer) Stop() {
+	defer func() { recover() }() // allow the method to be called more than once
+	close(c.done)
 }
 
 func (c *Consumer) Messages() <-chan Message {
 	return c.msgs
 }
 
-func (c *Consumer) stop() {
-	defer func() { recover() }() // allow the method to be called more than once
-	close(c.close)
-}
-
-func (c *Consumer) wait() {
-	<-c.done
-}
-
 func (c *Consumer) run() {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
-	defer close(c.done)
+	defer close(c.msgs)
 
 	for {
 		select {
@@ -138,9 +114,9 @@ func (c *Consumer) run() {
 				log.Print(err)
 			}
 
-		case <-c.close:
-			close(c.msgs)
-			c.join.Done()
+		case <-c.done:
+			c.close()
+			c.join.Wait()
 			return
 		}
 	}
@@ -175,6 +151,17 @@ func (c *Consumer) pulse() (err error) {
 	return
 }
 
+func (c *Consumer) close() {
+	c.mtx.Lock()
+
+	for _, cmdChan := range c.conns {
+		cmdChan <- Cls{}
+	}
+
+	c.mtx.Unlock()
+	return
+}
+
 func (c *Consumer) openConn(addr string) {
 	cmdChan := make(chan Command, c.maxInFlight)
 	c.mtx.Lock()
@@ -202,21 +189,25 @@ func (c *Consumer) runConn(addr string, cmdChan chan Command) {
 	var rdy int
 
 	if conn, err = DialTimeout(addr, c.dialTimeout); err != nil {
-		log.Printf("connecting to %s: %s", addr, err)
+		log.Printf("failed to connect to %s: %s", addr, err)
 		return
 	}
 
 	c.join.Add(1)
 	go c.writeConn(conn, cmdChan)
 
-	identified := false
 	cmdChan <- c.identify
-
-	defer func() { recover() }() // catch the panic that happens when pushing a message after the consumer was shutdown
+	cmdChan <- Sub{Topic: c.topic, Channel: c.channel}
 
 	for {
 		var frame Frame
 		var err error
+
+		select {
+		default:
+		case <-c.done:
+			return
+		}
 
 		if rdy == 0 {
 			rdy = c.approximateRdyCount()
@@ -244,10 +235,7 @@ func (c *Consumer) runConn(addr string, cmdChan chan Command) {
 		case Response:
 			switch f {
 			case OK:
-				if !identified {
-					identified = true
-					continue
-				}
+				continue
 
 			case Heartbeat:
 				cmdChan <- Nop{}

@@ -108,6 +108,10 @@ func (c *Consumer) run() {
 	defer ticker.Stop()
 	defer close(c.msgs)
 
+	if err := c.pulse(); err != nil {
+		log.Print(err)
+	}
+
 	for {
 		select {
 		case <-ticker.C:
@@ -140,7 +144,11 @@ func (c *Consumer) pulse() (err error) {
 		}).Lookup(c.topic)
 
 		for _, p := range res.Producers {
-			nodes = append(nodes, net.JoinHostPort(p.RemoteAddress, strconv.Itoa(p.TcpPort)))
+			host, port, _ := net.SplitHostPort(p.BroadcastAddress)
+			if len(port) == 0 {
+				port = strconv.Itoa(p.TcpPort) // hopefully it's the same
+			}
+			nodes = append(nodes, net.JoinHostPort(host, port))
 		}
 	}
 

@@ -80,7 +80,7 @@ func ReadFrame(r *bufio.Reader) (frame Frame, err error) {
 		return
 	}
 
-	switch FrameType(ftype) {
+	switch size -= 4; FrameType(ftype) {
 	case FrameTypeResponse:
 		return readResponse(int(size), r)
 
@@ -143,7 +143,7 @@ func readUnknownFrame(t FrameType, n int, r *bufio.Reader) (f UnknownFrame, err 
 }
 
 func writeFrameHeader(w *bufio.Writer, ftype FrameType, size int) (err error) {
-	if err = binary.Write(w, binary.BigEndian, int32(size)); err != nil {
+	if err = binary.Write(w, binary.BigEndian, int32(size)+4); err != nil {
 		err = errors.Wrap(err, "writing frame header")
 		return
 	}

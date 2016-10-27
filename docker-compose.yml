@@ -6,7 +6,8 @@ services:
   nsqlookupd-1:
     image: nsqio/nsq
     command: >
-      /nsqlookupd -broadcast-address localhost
+      /nsqlookupd
+      -broadcast-address localhost:4160
     ports:
       - 4160:4160
       - 4161:4161
@@ -14,7 +15,8 @@ services:
   nsqlookupd-2:
     image: nsqio/nsq
     command: >
-      /nsqlookupd -broadcast-address localhost
+      /nsqlookupd
+      -broadcast-address localhost:4162
     ports:
       - 4162:4160
       - 4163:4161
@@ -22,7 +24,8 @@ services:
   nsqlookupd-3:
     image: nsqio/nsq
     command: >
-      /nsqlookupd -broadcast-address localhost
+      /nsqlookupd
+      -broadcast-address localhost:4164
     ports:
       - 4164:4160
       - 4165:4161
@@ -31,7 +34,7 @@ services:
     image: nsqio/nsq
     command: >
       /nsqd
-      -broadcast-address localhost
+      -broadcast-address localhost:4150
       -lookupd-tcp-address nsqlookupd-1:4160
       -lookupd-tcp-address nsqlookupd-2:4160
       -lookupd-tcp-address nsqlookupd-3:4160
@@ -43,7 +46,7 @@ services:
     image: nsqio/nsq
     command: >
       /nsqd
-      -broadcast-address localhost
+      -broadcast-address localhost:4152
       -lookupd-tcp-address nsqlookupd-1:4160
       -lookupd-tcp-address nsqlookupd-2:4160
       -lookupd-tcp-address nsqlookupd-3:4160
@@ -55,7 +58,7 @@ services:
     image: nsqio/nsq
     command: >
       /nsqd
-      -broadcast-address localhost
+      -broadcast-address localhost:4154
       -lookupd-tcp-address nsqlookupd-1:4160
       -lookupd-tcp-address nsqlookupd-2:4160
       -lookupd-tcp-address nsqlookupd-3:4160

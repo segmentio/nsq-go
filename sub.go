@@ -6,15 +6,23 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Sub represents the SUB command.
 type Sub struct {
-	Topic   string
+	// Topic must be set to the name of the topic to subscribe to.
+	Topic string
+
+	// Channel must be set to the name of the channel to subscribe to.
 	Channel string
 }
 
+// Name returns the name of the command in order to satisfy the Command
+// interface.
 func (c Sub) Name() string {
 	return "SUB"
 }
 
+// Write serializes the command to the given buffered output, satisfies the
+// Command interface.
 func (c Sub) Write(w *bufio.Writer) (err error) {
 	for _, s := range [...]string{
 		"SUB ",

@@ -8,15 +8,24 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Pub represents the PUB command.
 type Pub struct {
-	Topic   string
+	// Topic must be set to the name of the topic to which the message will be
+	// published.
+	Topic string
+
+	// Message is the raw message to publish.
 	Message []byte
 }
 
+// Name returns the name of the command in order to satisfy the Command
+// interface.
 func (c Pub) Name() string {
 	return "PUB"
 }
 
+// Write serializes the command to the given buffered output, satisfies the
+// Command interface.
 func (c Pub) Write(w *bufio.Writer) (err error) {
 	for _, s := range [...]string{
 		"PUB ",

@@ -8,14 +8,20 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Auth represents the AUTH command.
 type Auth struct {
+	// Secret set for authentication.
 	Secret string
 }
 
+// Name returns the name of the command in order to satisfy the Command
+// interface.
 func (c Auth) Name() string {
 	return "AUTH"
 }
 
+// Write serializes the command to the given buffered output, satisfies the
+// Command interface.
 func (c Auth) Write(w *bufio.Writer) (err error) {
 	if _, err = w.WriteString("AUTH\n"); err != nil {
 		err = errors.Wrap(err, "writing AUTH command")

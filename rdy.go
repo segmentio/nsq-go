@@ -7,14 +7,20 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Rdy represents the RDY command.
 type Rdy struct {
+	// Count is the number of messages that a consumer is ready to accept.
 	Count int
 }
 
+// Name returns the name of the command in order to satisfy the Command
+// interface.
 func (c Rdy) Name() string {
 	return "RDY"
 }
 
+// Write serializes the command to the given buffered output, satisfies the
+// Command interface.
 func (c Rdy) Write(w *bufio.Writer) (err error) {
 	if _, err = w.WriteString("RDY "); err != nil {
 		err = errors.Wrap(err, "writing RDY command")

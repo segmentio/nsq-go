@@ -8,15 +8,24 @@ import (
 	"github.com/pkg/errors"
 )
 
+// MPub represents the MPUB command.
 type MPub struct {
-	Topic    string
+	// Topic must be set to the name of the topic to which the messages will be
+	// published.
+	Topic string
+
+	// Messages is the list of raw messages to publish.
 	Messages [][]byte
 }
 
+// Name returns the name of the command in order to satisfy the Command
+// interface.
 func (c MPub) Name() string {
 	return "MPUB"
 }
 
+// Write serializes the command to the given buffered output, satisfies the
+// Command interface.
 func (c MPub) Write(w *bufio.Writer) (err error) {
 	for _, s := range [...]string{
 		"MPUB ",

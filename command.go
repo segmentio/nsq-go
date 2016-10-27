@@ -7,12 +7,30 @@ import (
 	"github.com/pkg/errors"
 )
 
+// The Command interface is implemented by types that represent the different
+// commands of the NSQ protocol.
 type Command interface {
+	// Name returns the name of the command in order to satisfy the Command
+	// interface.
 	Name() string
 
+	// Write serializes the command to the given buffered output, satisfies the
+	// Command interface.
 	Write(*bufio.Writer) error
 }
 
+// ReadCommand reads a command from the buffered input r, returning it or an
+// error if something went wrong.
+//
+//	if cmd, err := nsq.ReadCommand(r); err != nil {
+//		// handle the error
+//	} else {
+//		switch c := cmd.(type) {
+//		case nsq.Pub:
+//			...
+//		}
+//	}
+//
 func ReadCommand(r *bufio.Reader) (cmd Command, err error) {
 	var line string
 
@@ -24,9 +42,9 @@ func ReadCommand(r *bufio.Reader) (cmd Command, err error) {
 	if n := len(line); n == 0 || line[n-1] != '\n' {
 		err = errors.New("missing newline at the end of a command")
 		return
-	} else {
-		line = line[:n-1]
 	}
+
+	line = line[:n-1]
 
 	if line == "IDENTIFY" {
 		return readIdentify(r)

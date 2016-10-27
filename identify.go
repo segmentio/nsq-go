@@ -10,9 +10,17 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Identify represents the IDENTIFY command.
 type Identify struct {
-	ClientID  string
-	Hostname  string
+	// ClientID should be set to a unique identifier representing the client.
+	ClientID string
+
+	// Hostname represents the hostname of the client, by default it is set to
+	// the value returned by os.Hostname is used.
+	Hostname string
+
+	// UserAgent represents the type of the client, by default it is set to
+	// nsq.DefaultUserAgent.
 	UserAgent string
 }
 
@@ -22,10 +30,14 @@ type identifyBody struct {
 	UserAgent string `json:"user_agent,omitempty"`
 }
 
+// Name returns the name of the command in order to satisfy the Command
+// interface.
 func (c Identify) Name() string {
 	return "IDENTIFY"
 }
 
+// Write serializes the command to the given buffered output, satisfies the
+// Command interface.
 func (c Identify) Write(w *bufio.Writer) (err error) {
 	var data []byte
 

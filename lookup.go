@@ -34,7 +34,7 @@ type LookupClient struct {
 }
 
 func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
-	var retList []io.ReadCloser
+	var retList [][]byte
 
 	if retList, err = c.doAll("GET", "/lookup", url.Values{"topic": []string{topic}}, nil); len(retList) == 0 {
 		return
@@ -50,11 +50,7 @@ func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
 			Data       LookupResult `json:"data"`
 		}{}
 
-		d := json.NewDecoder(r)
-		e := d.Decode(&v)
-		r.Close()
-
-		if e != nil {
+		if e := json.Unmarshal(r, &v); e != nil {
 			err = appendError(err, e)
 			continue
 		}
@@ -84,14 +80,14 @@ func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
 	return
 }
 
-func (c *LookupClient) doAll(method string, path string, query url.Values, data []byte) (ret []io.ReadCloser, err error) {
+func (c *LookupClient) doAll(method string, path string, query url.Values, data []byte) (ret [][]byte, err error) {
 	addrs := c.Addresses
 
 	if len(addrs) == 0 {
 		addrs = []string{"localhost:4161"}
 	}
 
-	retChan := make(chan io.ReadCloser, len(addrs))
+	retChan := make(chan []byte, len(addrs))
 	errChan := make(chan error, len(addrs))
 	timeout := c.Client.Timeout
 
@@ -123,7 +119,7 @@ func (c *LookupClient) doAll(method string, path string, query url.Values, data 
 	return
 }
 
-func (c *LookupClient) doAsync(host string, method string, path string, query url.Values, data []byte, ret chan<- io.ReadCloser, err chan<- error) {
+func (c *LookupClient) doAsync(host string, method string, path string, query url.Values, data []byte, ret chan<- []byte, err chan<- error) {
 	if r, e := c.do(host, method, path, query, data); e != nil {
 		err <- e
 	} else {
@@ -131,7 +127,7 @@ func (c *LookupClient) doAsync(host string, method string, path string, query ur
 	}
 }
 
-func (c *LookupClient) do(host string, method string, path string, query url.Values, data []byte) (ret io.ReadCloser, err error) {
+func (c *LookupClient) do(host string, method string, path string, query url.Values, data []byte) (ret []byte, err error) {
 	var res *http.Response
 	var scheme = c.Scheme
 	var userAgent = c.UserAgent
@@ -180,6 +176,10 @@ func (c *LookupClient) do(host string, method string, path string, query url.Val
 		return
 	}
 
-	ret = res.Body
+	if ret, err = ioutil.ReadAll(res.Body); err != nil {
+		err = errors.Wrapf(err, "%s %s://%s?%s", method, scheme, host, query.Encode())
+		return
+	}
+
 	return
 }

@@ -21,24 +21,18 @@ func (c *Client) Ping() error {
 	return c.call("GET", "/ping", nil)
 }
 
-func (c *Client) Publish(topic string, message []byte) error {
-	ret, err := c.do("POST", "/pub", url.Values{
+func (c *Client) Publish(topic string, message []byte) (err error) {
+	_, err = c.do("POST", "/pub", url.Values{
 		"topic": []string{topic},
 	}, message)
-	if ret != nil {
-		ret.Close()
-	}
-	return err
+	return
 }
 
-func (c *Client) MutliPublish(topic string, messages ...[]byte) error {
-	ret, err := c.do("POST", "/mpub", url.Values{
+func (c *Client) MutliPublish(topic string, messages ...[]byte) (err error) {
+	_, err = c.do("POST", "/mpub", url.Values{
 		"topic": []string{topic},
 	}, bytes.Join(messages, []byte("\n")))
-	if ret != nil {
-		ret.Close()
-	}
-	return err
+	return
 }
 
 func (c *Client) CreateTopic(topic string) error {
@@ -106,15 +100,12 @@ func (c *Client) UnpauseChannel(topic string, channel string) error {
 	})
 }
 
-func (c *Client) call(method string, path string, query url.Values) error {
-	ret, err := c.do(method, path, query, nil)
-	if ret != nil {
-		ret.Close()
-	}
-	return err
+func (c *Client) call(method string, path string, query url.Values) (err error) {
+	_, err = c.do(method, path, query, nil)
+	return
 }
 
-func (c *Client) do(method string, path string, query url.Values, data []byte) (ret io.ReadCloser, err error) {
+func (c *Client) do(method string, path string, query url.Values, data []byte) (ret []byte, err error) {
 	var res *http.Response
 	var host = c.Address
 	var scheme = c.Scheme
@@ -166,6 +157,10 @@ func (c *Client) do(method string, path string, query url.Values, data []byte) (
 		return
 	}
 
-	ret = res.Body
+	if ret, err = ioutil.ReadAll(res.Body); err != nil {
+		err = errors.Wrapf(err, "%s %s://%s?%s", method, scheme, host, query.Encode())
+		return
+	}
+
 	return
 }

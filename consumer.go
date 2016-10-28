@@ -145,8 +145,11 @@ func (c *Consumer) pulse() (err error) {
 
 		for _, p := range res.Producers {
 			host, port, _ := net.SplitHostPort(p.BroadcastAddress)
+			if len(host) == 0 {
+				host = p.BroadcastAddress
+			}
 			if len(port) == 0 {
-				port = strconv.Itoa(p.TcpPort) // hopefully it's the same
+				port = strconv.Itoa(p.TcpPort)
 			}
 			nodes = append(nodes, net.JoinHostPort(host, port))
 		}

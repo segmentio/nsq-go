@@ -3,6 +3,20 @@ nsq-go [![CircleCI](https://circleci.com/gh/segmentio/nsq-go.svg?style=shield)](
 
 Go package providing tools for building NSQ clients, servers and middleware.
 
+Motivations
+-----------
+
+We ran into production issues with the standard nsq-go package where our workers
+would enter deadlock situations where they would stop consuming messages and
+just hang in endless termination loops.  
+After digging through the code and trying to figure out how to address the
+problem it became clear that a rewrite was going to be faster than dealing with
+the amount of state synchronization that was done in nsq-go (multiple mutexes,
+channels and atomic variables involved).
+
+This package is designed to offer less features than the standard nsq-go package
+and instead focus on simplicity and ease of maintenance and integration.
+
 Consumer
 --------
 

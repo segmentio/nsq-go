@@ -4,7 +4,7 @@ import "testing"
 
 func TestIdentify(t *testing.T) {
 	testCommand(t, "IDENTIFY", Identify{
-		Info: PeerInfo{
+		Info: NodeInfo{
 			RemoteAddress:    "127.0.0.1:12345",
 			Hostname:         "localhost",
 			BroadcastAddress: "127.0.0.1:4150",

@@ -8,7 +8,7 @@ import (
 )
 
 type Identify struct {
-	Info PeerInfo
+	Info NodeInfo
 }
 
 func (c Identify) Name() string {

@@ -448,7 +448,7 @@ func (s *Server) serveTombstoneTopicProducer(res http.ResponseWriter, req *http.
 		return
 	}
 
-	port, err := strconv.Atoi(port)
+	intport, err := strconv.Atoi(port)
 	if err != nil {
 		s.sendResponse(res, 500, "BAD_ARG_NODE", nil)
 		return
@@ -456,7 +456,7 @@ func (s *Server) serveTombstoneTopicProducer(res http.ResponseWriter, req *http.
 
 	if err := s.engine.TombstoneNode(NodeInfo{
 		BroadcastAddress: host,
-		HttpPort:         port,
+		HttpPort:         intport,
 	}, topic); err != nil {
 		s.sendInternalServerError(res, err)
 		return

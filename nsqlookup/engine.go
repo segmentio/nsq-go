@@ -23,6 +23,8 @@ type Engine interface {
 
 	UnregisterNode(node NodeInfo) error
 
+	TombstoneNode(node NodeInfo, topic string) error
+
 	RegisterTopic(node NodeInfo, topic string) error
 
 	UnregisterTopic(node NodeInfo, topic string) error

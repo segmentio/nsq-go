@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -151,6 +152,7 @@ func (s *Server) serveTcp(lstn net.Listener, join *sync.WaitGroup) {
 func (s *Server) ServeConn(conn net.Conn, join *sync.WaitGroup) {
 	defer join.Done()
 	defer conn.Close()
+
 	// TODO
 }
 
@@ -446,10 +448,21 @@ func (s *Server) serveTombstoneTopicProducer(res http.ResponseWriter, req *http.
 		return
 	}
 
-	_ = host
-	_ = port
+	port, err := strconv.Atoi(port)
+	if err != nil {
+		s.sendResponse(res, 500, "BAD_ARG_NODE", nil)
+		return
+	}
 
-	// TODO
+	if err := s.engine.TombstoneNode(NodeInfo{
+		BroadcastAddress: host,
+		HttpPort:         port,
+	}, topic); err != nil {
+		s.sendInternalServerError(res, err)
+		return
+	}
+
+	s.sendResponse(res, 200, "OK", nil)
 }
 
 func (s *Server) sendResponse(res http.ResponseWriter, status int, text string, value interface{}) {

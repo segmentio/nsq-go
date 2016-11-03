@@ -79,7 +79,7 @@ func StartServer(config ServerConfig) (s *Server, err error) {
 			return
 		}
 		defer func() {
-			if s == nil {
+			if tcpLstn != nil {
 				tcpLstn.Close()
 			}
 		}()
@@ -90,7 +90,7 @@ func StartServer(config ServerConfig) (s *Server, err error) {
 			return
 		}
 		defer func() {
-			if s == nil {
+			if httpLstn != nil {
 				httpLstn.Close()
 			}
 		}()
@@ -109,6 +109,8 @@ func StartServer(config ServerConfig) (s *Server, err error) {
 	s.join.Add(2)
 	go s.serveTcp(tcpLstn, &s.join)
 	go s.serveHttp(httpLstn, &s.join)
+
+	tcpLstn, httpLstn = nil, nil
 	return
 }
 

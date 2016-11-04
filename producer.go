@@ -1,11 +1,12 @@
 package nsq
 
 import (
-	"errors"
 	"io"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // ProducerConfig carries the different variables to tune a newly started
@@ -163,6 +164,9 @@ func (p *Producer) run() {
 		if conn != nil {
 			conn.Close()
 		}
+		if pipe != nil {
+			close(pipe)
+		}
 	}()
 
 	for {
@@ -172,6 +176,8 @@ func (p *Producer) run() {
 
 		case <-ping:
 			if err := p.ping(conn); err != nil {
+				close(pipe)
+				close(ping)
 				conn.Close()
 				conn = nil
 				ping = nil
@@ -202,6 +208,8 @@ func (p *Producer) run() {
 			}
 
 			if err := p.publish(conn, req.Topic, req.Message); err != nil {
+				close(pipe)
+				close(ping)
 				conn.Close()
 				conn = nil
 				ping = nil
@@ -216,16 +224,23 @@ func (p *Producer) run() {
 }
 
 func (p *Producer) flush(conn *Conn, pipe <-chan ProducerRequest, ping chan<- struct{}) {
+	var err error
+
 	defer conn.Close()
+	defer func() { recover() }() // may happen when the ping channel is closed
+	defer func() {
+		if err == nil {
+			err = io.ErrUnexpectedEOF
+		}
+		for req := range pipe {
+			req.Response <- err
+		}
+	}()
 
 	for {
 		var frame Frame
-		var err error
 
 		if frame, err = conn.ReadFrame(); err != nil {
-			if err != io.EOF && err != io.ErrUnexpectedEOF {
-				log.Print(err)
-			}
 			return
 		}
 
@@ -246,17 +261,15 @@ func (p *Producer) flush(conn *Conn, pipe <-chan ProducerRequest, ping chan<- st
 			}
 
 		case Error:
-			req := <-pipe
-			req.complete(f)
-			log.Printf("closing connection after receiving an error from %s: %s", conn.RemoteAddr(), f)
+			err = errors.Errorf("closing connection after receiving an error from %s: %s", conn.RemoteAddr(), f)
 			return
 
 		case Message:
-			log.Printf("closing connection after receiving an unexpected message from %s: %s", conn.RemoteAddr(), f.FrameType())
+			err = errors.Errorf("closing connection after receiving an unexpected message from %s: %s", conn.RemoteAddr(), f.FrameType())
 			return
 
 		default:
-			log.Printf("closing connection after receiving an unsupported frame from %s: %s", conn.RemoteAddr(), f.FrameType())
+			err = errors.Errorf("closing connection after receiving an unsupported frame from %s: %s", conn.RemoteAddr(), f.FrameType())
 			return
 		}
 	}

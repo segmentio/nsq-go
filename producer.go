@@ -166,14 +166,12 @@ func (p *Producer) run() {
 	}()
 
 	for {
-		var err error
-
 		select {
 		case <-p.done:
 			return
 
 		case <-ping:
-			if err = p.ping(conn); err != nil {
+			if err := p.ping(conn); err != nil {
 				conn.Close()
 				conn = nil
 				ping = nil
@@ -187,6 +185,8 @@ func (p *Producer) run() {
 			}
 
 			if conn == nil {
+				var err error
+
 				if conn, err = DialTimeout(p.address, p.dialTimeout); err != nil {
 					req.complete(err)
 
@@ -194,13 +194,14 @@ func (p *Producer) run() {
 					retry = p.sleep(retry)
 					continue
 				}
+
 				retry = 0
 				pipe = make(chan ProducerRequest)
 				ping = make(chan struct{})
 				go p.flush(conn, pipe, ping)
 			}
 
-			if err = p.publish(conn, req.Topic, req.Message); err != nil {
+			if err := p.publish(conn, req.Topic, req.Message); err != nil {
 				conn.Close()
 				conn = nil
 				ping = nil

@@ -10,12 +10,15 @@ import (
 )
 
 const (
-	DefaultUserAgent     = "github.com/segmentio/nsq-go"
-	DefaultMaxInFlight   = 1
-	DefaultDialTimeout   = 5 * time.Second
-	DefaultReadTimeout   = 1 * time.Minute
-	DefaultWriteTimeout  = 10 * time.Second
-	DefaultLookupTimeout = 10 * time.Second
+	DefaultUserAgent       = "github.com/segmentio/nsq-go"
+	DefaultMaxConcurrency  = 1
+	DefaultMaxInFlight     = 1
+	DefaultDialTimeout     = 5 * time.Second
+	DefaultReadTimeout     = 1 * time.Minute
+	DefaultWriteTimeout    = 10 * time.Second
+	DefaultLookupTimeout   = 10 * time.Second
+	DefaultMaxRetryTimeout = 10 * time.Second
+	DefaultMinRetryTimeout = 10 * time.Millisecond
 
 	NoTimeout = time.Duration(0)
 )
@@ -45,6 +48,8 @@ func Dial(addr string) (c *Conn, err error) {
 
 func DialTimeout(addr string, timeout time.Duration) (c *Conn, err error) {
 	var conn net.Conn
+	var now = time.Now()
+	var end = now.Add(timeout)
 	var magic = [...]byte{' ', ' ', 'V', '2'}
 
 	if conn, err = net.DialTimeout("tcp", addr, timeout); err != nil {
@@ -52,9 +57,21 @@ func DialTimeout(addr string, timeout time.Duration) (c *Conn, err error) {
 		return
 	}
 
+	if err = conn.SetWriteDeadline(end); err != nil {
+		conn.Close()
+		err = errors.Wrap(err, "setting write deadline on connection to tcp://"+addr)
+		return
+	}
+
 	if _, err = conn.Write(magic[:]); err != nil {
 		conn.Close()
 		err = errors.Wrap(err, "sending magic number to tcp://"+addr)
+		return
+	}
+
+	if err = conn.SetDeadline(time.Time{}); err != nil {
+		conn.Close()
+		err = errors.Wrap(err, "resetting deadlines on connection to tcp://"+addr)
 		return
 	}
 

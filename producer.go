@@ -113,7 +113,7 @@ func (p *Producer) Stop() {
 	p.join.Wait()
 }
 
-// Publish enqueues a message to be sent by p, returning an error if p was
+// Publish sends a message using the producer p, returning an error if it was
 // already closed or if an error occurred while publishing the message.
 //
 // Note that no retry is done internally, the producer will fail after the

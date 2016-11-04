@@ -222,12 +222,6 @@ func (p *Producer) flush(conn *Conn, pipe <-chan ProducerRequest, ping chan<- st
 		var frame Frame
 		var err error
 
-		select {
-		default:
-		case <-p.done:
-			return
-		}
-
 		if frame, err = conn.ReadFrame(); err != nil {
 			if err != io.EOF && err != io.ErrUnexpectedEOF {
 				log.Print(err)

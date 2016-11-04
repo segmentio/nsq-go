@@ -29,7 +29,7 @@ type Producer struct {
 	once sync.Once
 	join sync.WaitGroup
 
-	// Immutable state of the producers.
+	// Immutable state of the producer.
 	address         string
 	dialTimeout     time.Duration
 	readTimeout     time.Duration

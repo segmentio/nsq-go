@@ -1,0 +1,309 @@
+package nsq
+
+import (
+	"errors"
+	"io"
+	"log"
+	"sync"
+	"time"
+)
+
+// ProducerConfig carries the different variables to tune a newly started
+// producer.
+type ProducerConfig struct {
+	Address         string
+	MaxConcurrency  int
+	DialTimeout     time.Duration
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	MaxRetryTimeout time.Duration
+	MinRetryTimeout time.Duration
+}
+
+// Producer provide an abstraction around using direct connections to nsqd
+// nodes to send messages.
+type Producer struct {
+	// Communication channels of the producer.
+	reqs chan ProducerRequest
+	done chan struct{}
+	once sync.Once
+	join sync.WaitGroup
+
+	// Immutable state of the producers.
+	address         string
+	dialTimeout     time.Duration
+	readTimeout     time.Duration
+	writeTimeout    time.Duration
+	maxRetryTimeout time.Duration
+	minRetryTimeout time.Duration
+}
+
+// ProducerRequest are used to represent operations that are submitted to
+// producers.
+type ProducerRequest struct {
+	Topic    string
+	Message  []byte
+	Response chan<- error
+}
+
+// StartProducer starts and returns a new producer p, configured with the
+// variables from the config parameter, or returning an non-nil error if
+// some of the configuration variables were invalid.
+func StartProducer(config ProducerConfig) (p *Producer, err error) {
+	if len(config.Address) == 0 {
+		config.Address = "localhost:4151"
+	}
+
+	if config.MaxConcurrency == 0 {
+		config.MaxConcurrency = DefaultMaxConcurrency
+	}
+
+	if config.DialTimeout == 0 {
+		config.DialTimeout = DefaultDialTimeout
+	}
+
+	if config.ReadTimeout == 0 {
+		config.ReadTimeout = DefaultReadTimeout
+	}
+
+	if config.WriteTimeout == 0 {
+		config.WriteTimeout = DefaultWriteTimeout
+	}
+
+	if config.MaxRetryTimeout == 0 {
+		config.MaxRetryTimeout = DefaultMaxRetryTimeout
+	}
+
+	if config.MinRetryTimeout == 0 {
+		config.MinRetryTimeout = DefaultMinRetryTimeout
+	}
+
+	p = &Producer{
+		reqs:            make(chan ProducerRequest, config.MaxConcurrency),
+		done:            make(chan struct{}),
+		address:         config.Address,
+		dialTimeout:     config.DialTimeout,
+		readTimeout:     config.ReadTimeout,
+		writeTimeout:    config.WriteTimeout,
+		maxRetryTimeout: config.MaxRetryTimeout,
+		minRetryTimeout: config.MinRetryTimeout,
+	}
+	p.join.Add(config.MaxConcurrency)
+
+	for i := 0; i != config.MaxConcurrency; i++ {
+		go p.run()
+	}
+
+	return
+}
+
+// Stop gracefully shutsdown the producer, cancelling all inflight requests and
+// waiting for all backend connections to be closed.
+//
+// It is safe to call the method multiple times and from multiple goroutines,
+// they will all block until the producer has been completely shutdown.
+func (p *Producer) Stop() {
+	p.once.Do(p.stop)
+	err := errors.New("publishing to a producer that was already stopped")
+
+	for req := range p.reqs {
+		req.complete(err)
+	}
+
+	p.join.Wait()
+}
+
+// Publish enqueues a message to be sent by p, returning an error if p was
+// already closed or if an error occurred while publishing the message.
+//
+// Note that no retry is done internally, the producer will fail after the
+// first unsuccessful attempt to publish the message. It is the responsibility
+// of the caller to retry if necessary.
+func (p *Producer) Publish(topic string, message []byte) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = errors.New("publishing to a producer that was already stopped")
+		}
+	}()
+
+	res := make(chan error, 1)
+
+	p.reqs <- ProducerRequest{
+		Topic:    topic,
+		Message:  message,
+		Response: res,
+	}
+
+	err = <-res
+	return
+}
+
+// Requests returns a write-only channel that can be used to submit requests to p.
+//
+// This method is useful when the publish operation needs to be associated with
+// other operations on channels in a select statement for example, or to publish
+// in a non-blocking fashion.
+func (p *Producer) Requests() chan<- ProducerRequest {
+	return p.reqs
+}
+
+func (p *Producer) stop() {
+	close(p.done)
+	close(p.reqs)
+}
+
+func (p *Producer) run() {
+	var conn *Conn
+	var pipe chan ProducerRequest
+	var ping chan struct{}
+	var retry time.Duration
+
+	defer p.join.Done()
+	defer func() {
+		if conn != nil {
+			conn.Close()
+		}
+	}()
+
+	for {
+		var err error
+
+		select {
+		case <-p.done:
+			return
+
+		case <-ping:
+			if err = p.ping(conn); err != nil {
+				conn.Close()
+				conn = nil
+				ping = nil
+				pipe = nil
+				continue
+			}
+
+		case req, ok := <-p.reqs:
+			if !ok {
+				return
+			}
+
+			if conn == nil {
+				if conn, err = DialTimeout(p.address, p.dialTimeout); err != nil {
+					req.complete(err)
+
+					log.Printf("failed to connect to %s, retrying after %s: %s", p.address, retry, err)
+					retry = p.sleep(retry)
+					continue
+				}
+				retry = 0
+				pipe = make(chan ProducerRequest)
+				ping = make(chan struct{})
+				go p.flush(conn, pipe, ping)
+			}
+
+			if err = p.publish(conn, req.Topic, req.Message); err != nil {
+				conn.Close()
+				conn = nil
+				ping = nil
+				pipe = nil
+				req.complete(err)
+				continue
+			}
+
+			pipe <- req
+		}
+	}
+}
+
+func (p *Producer) flush(conn *Conn, pipe <-chan ProducerRequest, ping chan<- struct{}) {
+	defer conn.Close()
+
+	for {
+		var frame Frame
+		var err error
+
+		select {
+		default:
+		case <-p.done:
+			return
+		}
+
+		if frame, err = conn.ReadFrame(); err != nil {
+			if err != io.EOF && err != io.ErrUnexpectedEOF {
+				log.Print(err)
+			}
+			return
+		}
+
+		switch f := frame.(type) {
+		case Response:
+			switch f {
+			case OK:
+				req := <-pipe
+				req.complete(nil)
+				continue
+
+			case Heartbeat:
+				ping <- struct{}{}
+				continue
+
+			case CloseWait:
+				continue
+			}
+
+		case Error:
+			req := <-pipe
+			req.complete(f)
+			log.Printf("closing connection after receiving an error from %s: %s", conn.RemoteAddr(), f)
+			return
+
+		case Message:
+			log.Printf("closing connection after receiving an unexpected message from %s: %s", conn.RemoteAddr(), f.FrameType())
+			return
+
+		default:
+			log.Printf("closing connection after receiving an unsupported frame from %s: %s", conn.RemoteAddr(), f.FrameType())
+			return
+		}
+	}
+}
+
+func (p *Producer) publish(conn *Conn, topic string, message []byte) error {
+	return p.write(conn, Pub{Topic: topic, Message: message})
+}
+
+func (p *Producer) ping(conn *Conn) error {
+	return p.write(conn, Nop{})
+}
+
+func (p *Producer) write(conn *Conn, cmd Command) (err error) {
+	if err = conn.SetDeadline(time.Now().Add(p.writeTimeout)); err == nil {
+		err = conn.WriteCommand(cmd)
+	}
+	return
+}
+
+func (p *Producer) sleep(d time.Duration) time.Duration {
+	if d < p.minRetryTimeout {
+		d = p.minRetryTimeout
+	}
+
+	t := time.NewTimer(d)
+	defer t.Stop()
+
+	select {
+	case <-t.C:
+	case <-p.done:
+	}
+
+	if d *= 2; d > p.maxRetryTimeout {
+		d = p.maxRetryTimeout
+	}
+
+	return d
+}
+
+func (r ProducerRequest) complete(err error) {
+	if r.Response != nil {
+		r.Response <- err
+	}
+}

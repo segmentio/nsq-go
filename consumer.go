@@ -16,6 +16,7 @@ type Consumer struct {
 	// Communication channels of the consumer.
 	msgs chan Message  // messages read from the connections
 	done chan struct{} // closed when the consumer is shutdown
+	once sync.Once
 
 	// Immutable state of the consumer.
 	topic        string
@@ -95,12 +96,15 @@ func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
 }
 
 func (c *Consumer) Stop() {
-	defer func() { recover() }() // allow the method to be called more than once
-	close(c.done)
+	c.once.Do(c.stop)
 }
 
 func (c *Consumer) Messages() <-chan Message {
 	return c.msgs
+}
+
+func (c *Consumer) stop() {
+	close(c.done)
 }
 
 func (c *Consumer) run() {

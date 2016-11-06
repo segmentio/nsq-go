@@ -224,6 +224,7 @@ func (p *Producer) run() {
 }
 
 func (p *Producer) flush(conn *Conn, pipe <-chan ProducerRequest, ping chan<- struct{}) {
+	var cnt int
 	var err error
 
 	defer conn.Close()
@@ -240,9 +241,28 @@ func (p *Producer) flush(conn *Conn, pipe <-chan ProducerRequest, ping chan<- st
 	for {
 		var frame Frame
 
-		if frame, err = conn.ReadFrame(); err != nil {
+		if err = conn.SetReadDeadline(time.Now().Add(p.readTimeout)); err != nil {
 			return
 		}
+
+		if frame, err = conn.ReadFrame(); err != nil {
+			if len(pipe) == 0 {
+				continue
+			}
+
+			// After two consecutive timeouts and when there are pending
+			// requests we assume the response will not come and we're better
+			// off closing the connection and returning an error.
+			if isTimeout(err) {
+				if cnt++; cnt < 2 {
+					continue
+				}
+			}
+
+			return
+		}
+
+		cnt = 0
 
 		switch f := frame.(type) {
 		case Response:

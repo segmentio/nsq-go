@@ -34,6 +34,10 @@ func TestConsumer(t *testing.T) {
 				}
 			}
 
+			// Allow some time for the nsqd nodes to inform nsqlookupd that they host
+			// a specific topic.
+			time.Sleep(100 * time.Millisecond)
+
 			// Each bucket should have a value of 1 after the test.
 			buckets := make([]int, count)
 

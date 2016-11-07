@@ -8,7 +8,7 @@ import (
 )
 
 func TestProducer(t *testing.T) {
-	for _, n := range []int{10 /*, 10, 100, 1000*/} {
+	for _, n := range []int{1, 10, 100, 1000} {
 		count := n
 		topic := fmt.Sprintf("test-publisher-%d", n)
 		t.Run(topic, func(t *testing.T) {

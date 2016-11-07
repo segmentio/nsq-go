@@ -1,6 +1,9 @@
 package nsq
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 var (
 	nsqlookup = []string{
@@ -32,6 +35,10 @@ func TestLookup(t *testing.T) {
 			}
 		}()
 	}
+
+	// Allow some time for the nsqd nodes to inform nsqlookupd that they host
+	// a specific topic.
+	time.Sleep(100 * time.Millisecond)
 
 	res, err := (&LookupClient{Addresses: nsqlookup}).Lookup("test-lookup")
 

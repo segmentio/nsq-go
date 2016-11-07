@@ -165,15 +165,19 @@ func (p *Producer) run() {
 	var ping chan struct{}
 	var retry time.Duration
 
-	defer p.join.Done()
-	defer func() {
+	shutdown := func() {
 		if conn != nil {
-			conn.Close()
-		}
-		if pipe != nil {
 			close(pipe)
+			close(ping)
+			conn.Close()
+			conn = nil
+			ping = nil
+			pipe = nil
 		}
-	}()
+	}
+
+	defer p.join.Done()
+	defer shutdown()
 
 	for {
 		select {
@@ -182,12 +186,7 @@ func (p *Producer) run() {
 
 		case <-ping:
 			if err := p.ping(conn); err != nil {
-				close(pipe)
-				close(ping)
-				conn.Close()
-				conn = nil
-				ping = nil
-				pipe = nil
+				shutdown()
 				continue
 			}
 
@@ -201,7 +200,6 @@ func (p *Producer) run() {
 
 				if conn, err = DialTimeout(p.address, p.dialTimeout); err != nil {
 					req.complete(err)
-
 					log.Printf("failed to connect to %s, retrying after %s: %s", p.address, retry, err)
 					retry = p.sleep(retry)
 					continue
@@ -214,13 +212,7 @@ func (p *Producer) run() {
 			}
 
 			if err := p.publish(conn, req.Message); err != nil {
-				close(pipe)
-				close(ping)
-				conn.Close()
-				conn = nil
-				ping = nil
-				pipe = nil
-				req.complete(err)
+				shutdown()
 				continue
 			}
 

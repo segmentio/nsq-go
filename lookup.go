@@ -184,14 +184,14 @@ func (c *LookupClient) do(host string, method string, path string, query url.Val
 
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
-		res.Body.Close()
-		err = errors.Errorf("%s %s://%s?%s: %d %s", method, scheme, host, query.Encode(), res.StatusCode, res.Status)
+	if ret, err = ioutil.ReadAll(res.Body); err != nil {
+		err = errors.Wrap(err, "reading response body")
 		return
 	}
 
-	if ret, err = ioutil.ReadAll(res.Body); err != nil {
-		err = errors.Wrapf(err, "%s %s://%s?%s", method, scheme, host, query.Encode())
+	if res.StatusCode >= 400 {
+		res.Body.Close()
+		err = errors.Errorf("%s %s://%s?%s: %s %s", method, scheme, host, query.Encode(), res.Status, string(ret))
 		return
 	}
 

@@ -13,6 +13,7 @@ import (
 // producer.
 type ProducerConfig struct {
 	Address         string
+	Topic           string
 	MaxConcurrency  int
 	DialTimeout     time.Duration
 	ReadTimeout     time.Duration
@@ -32,6 +33,7 @@ type Producer struct {
 
 	// Immutable state of the producer.
 	address         string
+	topic           string
 	dialTimeout     time.Duration
 	readTimeout     time.Duration
 	writeTimeout    time.Duration
@@ -42,7 +44,6 @@ type Producer struct {
 // ProducerRequest are used to represent operations that are submitted to
 // producers.
 type ProducerRequest struct {
-	Topic    string
 	Message  []byte
 	Response chan<- error
 }
@@ -51,6 +52,11 @@ type ProducerRequest struct {
 // variables from the config parameter, or returning an non-nil error if
 // some of the configuration variables were invalid.
 func StartProducer(config ProducerConfig) (p *Producer, err error) {
+	if len(config.Topic) == 0 {
+		err = errors.New("creating a producer requires a non-empty topic")
+		return
+	}
+
 	if len(config.Address) == 0 {
 		config.Address = "localhost:4151"
 	}
@@ -83,6 +89,7 @@ func StartProducer(config ProducerConfig) (p *Producer, err error) {
 		reqs:            make(chan ProducerRequest, config.MaxConcurrency),
 		done:            make(chan struct{}),
 		address:         config.Address,
+		topic:           config.Topic,
 		dialTimeout:     config.DialTimeout,
 		readTimeout:     config.ReadTimeout,
 		writeTimeout:    config.WriteTimeout,
@@ -120,7 +127,7 @@ func (p *Producer) Stop() {
 // Note that no retry is done internally, the producer will fail after the
 // first unsuccessful attempt to publish the message. It is the responsibility
 // of the caller to retry if necessary.
-func (p *Producer) Publish(topic string, message []byte) (err error) {
+func (p *Producer) Publish(message []byte) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = errors.New("publishing to a producer that was already stopped")
@@ -130,7 +137,6 @@ func (p *Producer) Publish(topic string, message []byte) (err error) {
 	res := make(chan error, 1)
 
 	p.reqs <- ProducerRequest{
-		Topic:    topic,
 		Message:  message,
 		Response: res,
 	}
@@ -207,7 +213,7 @@ func (p *Producer) run() {
 				go p.flush(conn, pipe, ping)
 			}
 
-			if err := p.publish(conn, req.Topic, req.Message); err != nil {
+			if err := p.publish(conn, req.Message); err != nil {
 				close(pipe)
 				close(ping)
 				conn.Close()
@@ -295,8 +301,8 @@ func (p *Producer) flush(conn *Conn, pipe <-chan ProducerRequest, ping chan<- st
 	}
 }
 
-func (p *Producer) publish(conn *Conn, topic string, message []byte) error {
-	return p.write(conn, Pub{Topic: topic, Message: message})
+func (p *Producer) publish(conn *Conn, message []byte) error {
+	return p.write(conn, Pub{Topic: p.topic, Message: message})
 }
 
 func (p *Producer) ping(conn *Conn) error {

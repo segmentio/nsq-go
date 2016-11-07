@@ -26,12 +26,13 @@ func TestProducer(t *testing.T) {
 
 			p, _ := StartProducer(ProducerConfig{
 				Address:        "localhost:4150",
+				Topic:          topic,
 				MaxConcurrency: 3,
 			})
 			defer p.Stop()
 
 			for i := 0; i != count; i++ {
-				if err := p.Publish(topic, []byte(strconv.Itoa(i))); err != nil {
+				if err := p.Publish([]byte(strconv.Itoa(i))); err != nil {
 					t.Error(err)
 					return
 				}

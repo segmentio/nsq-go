@@ -163,7 +163,8 @@ func (c *Consumer) pulse() (err error) {
 
 	for _, addr := range nodes {
 		if _, exists := c.conns[addr]; !exists {
-			cmdChan := make(chan Command, c.maxInFlight)
+			// '+ 2' for the initial identify and subscribe commands.
+			cmdChan := make(chan Command, c.maxInFlight+2)
 			c.conns[addr] = cmdChan
 			c.join.Add(1)
 			go c.runConn(addr, cmdChan)
@@ -178,7 +179,7 @@ func (c *Consumer) close() {
 	c.mtx.Lock()
 
 	for _, cmdChan := range c.conns {
-		cmdChan <- Cls{}
+		sendCommand(cmdChan, Cls{})
 	}
 
 	c.mtx.Unlock()
@@ -191,7 +192,7 @@ func (c *Consumer) closeConn(addr string) {
 	delete(c.conns, addr)
 	c.mtx.Unlock()
 	c.join.Done()
-	close(cmdChan)
+	closeCommand(cmdChan)
 }
 
 func (c *Consumer) runConn(addr string, cmdChan chan Command) {
@@ -209,27 +210,16 @@ func (c *Consumer) runConn(addr string, cmdChan chan Command) {
 	c.join.Add(1)
 	go c.writeConn(conn, cmdChan)
 
-	cmdChan <- c.identify
-	cmdChan <- Sub{Topic: c.topic, Channel: c.channel}
+	sendCommand(cmdChan, c.identify)
+	sendCommand(cmdChan, Sub{Topic: c.topic, Channel: c.channel})
 
 	for {
 		var frame Frame
 		var err error
 
-		select {
-		default:
-		case <-c.done:
-			return
-		}
-
 		if rdy == 0 {
 			rdy = c.approximateRdyCount()
-			cmdChan <- Rdy{Count: rdy}
-		}
-
-		if err = conn.SetReadDeadline(time.Now().Add(c.readTimeout)); err != nil {
-			log.Print(err)
-			return
+			sendCommand(cmdChan, Rdy{Count: rdy})
 		}
 
 		if frame, err = conn.ReadFrame(); err != nil {
@@ -248,18 +238,16 @@ func (c *Consumer) runConn(addr string, cmdChan chan Command) {
 		case Response:
 			switch f {
 			case OK:
-				continue
-
 			case Heartbeat:
-				cmdChan <- Nop{}
-				continue
+				sendCommand(cmdChan, Nop{})
 
 			case CloseWait:
 				return
-			}
 
-			log.Printf("closing connection after receiving an unexpected response from %s: %s", conn.RemoteAddr(), f)
-			return
+			default:
+				log.Printf("closing connection after receiving an unexpected response from %s: %s", conn.RemoteAddr(), f)
+				return
+			}
 
 		case Error:
 			log.Printf("closing connection after receiving an error from %s: %s", conn.RemoteAddr(), f)
@@ -272,13 +260,20 @@ func (c *Consumer) runConn(addr string, cmdChan chan Command) {
 	}
 }
 
-func (c *Consumer) writeConn(conn *Conn, cmdChan <-chan Command) {
+func (c *Consumer) writeConn(conn *Conn, cmdChan chan Command) {
 	defer c.join.Done()
 	defer conn.Close()
+	defer closeCommand(cmdChan)
 
-	for cmd := range cmdChan {
-		if err := c.writeConnCommand(conn, cmd); err != nil {
-			log.Print(err)
+	for {
+		select {
+		case cmd := <-cmdChan:
+			if err := c.writeConnCommand(conn, cmd); err != nil {
+				log.Print(err)
+				return
+			}
+
+		case <-c.done:
 			return
 		}
 	}

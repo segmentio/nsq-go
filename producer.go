@@ -26,6 +26,7 @@ type ProducerConfig struct {
 // nodes to send messages.
 type Producer struct {
 	// Communication channels of the producer.
+	cmds chan Command
 	reqs chan ProducerRequest
 	done chan struct{}
 	once sync.Once
@@ -46,6 +47,7 @@ type Producer struct {
 type ProducerRequest struct {
 	Message  []byte
 	Response chan<- error
+	Deadline time.Time
 }
 
 // StartProducer starts and returns a new producer p, configured with the
@@ -86,6 +88,7 @@ func StartProducer(config ProducerConfig) (p *Producer, err error) {
 	}
 
 	p = &Producer{
+		cmds:            make(chan Command, config.MaxConcurrency),
 		reqs:            make(chan ProducerRequest, config.MaxConcurrency),
 		done:            make(chan struct{}),
 		address:         config.Address,
@@ -134,14 +137,20 @@ func (p *Producer) Publish(message []byte) (err error) {
 		}
 	}()
 
-	res := make(chan error, 1)
+	response := make(chan error, 1)
+	deadline := time.Now().Add(p.dialTimeout + p.readTimeout + p.writeTimeout)
 
+	// Attempts to queue the request so one of the active connections can pick
+	// it up.
 	p.reqs <- ProducerRequest{
 		Message:  message,
-		Response: res,
+		Response: response,
+		Deadline: deadline,
 	}
 
-	err = <-res
+	// This will always trigger, either if the connection was lost or if a
+	// response was successfully sent.
+	err = <-response
 	return
 }
 
@@ -161,32 +170,34 @@ func (p *Producer) stop() {
 
 func (p *Producer) run() {
 	var conn *Conn
-	var pipe chan ProducerRequest
-	var ping chan struct{}
+	var resChan chan Frame
+	var pending []ProducerRequest
 	var retry time.Duration
 
-	shutdown := func() {
+	shutdown := func(err error) {
 		if conn != nil {
-			close(pipe)
-			close(ping)
+			closeFrameChan(resChan)
 			conn.Close()
 			conn = nil
-			ping = nil
-			pipe = nil
+			resChan = nil
+			pending = completeAllProducerRequests(pending, err)
 		}
 	}
 
 	defer p.join.Done()
-	defer shutdown()
+	defer shutdown(nil)
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-p.done:
 			return
 
-		case <-ping:
-			if err := p.ping(conn); err != nil {
-				shutdown()
+		case now := <-ticker.C:
+			if producerRequestsTimedOut(pending, now) {
+				shutdown(errors.New("timeout"))
 				continue
 			}
 
@@ -206,99 +217,74 @@ func (p *Producer) run() {
 				}
 
 				retry = 0
-				pipe = make(chan ProducerRequest)
-				ping = make(chan struct{})
-				go p.flush(conn, pipe, ping)
+				pending = make([]ProducerRequest, 0)
+				resChan = make(chan Frame, 16)
+				go p.flush(conn, resChan)
 			}
 
 			if err := p.publish(conn, req.Message); err != nil {
-				shutdown()
+				req.complete(err)
+				shutdown(err)
 				continue
 			}
 
-			pipe <- req
+			pending = append(pending, req)
+
+		case frame := <-resChan:
+			switch f := frame.(type) {
+			case Response:
+				switch f {
+				case OK:
+					pending = completeNextProducerRequest(pending, nil)
+
+				case Heartbeat:
+					if err := p.ping(conn); err != nil {
+						shutdown(err)
+						continue
+					}
+
+				case CloseWait:
+					return
+
+				default:
+					shutdown(errors.Errorf("closing connection after receiving an unexpected response from %s: %s", conn.RemoteAddr(), f))
+					continue
+				}
+
+			case Error:
+				shutdown(errors.Errorf("closing connection after receiving an error from %s: %s", conn.RemoteAddr(), f))
+				continue
+
+			case Message:
+				shutdown(errors.Errorf("closing connection after receiving an unexpected message from %s: %s", conn.RemoteAddr(), f.FrameType()))
+				continue
+
+			default:
+				shutdown(errors.Errorf("closing connection after receiving an unsupported frame from %s: %s", conn.RemoteAddr(), f.FrameType()))
+				continue
+			}
 		}
 	}
 }
 
-func (p *Producer) flush(conn *Conn, pipe <-chan ProducerRequest, ping chan<- struct{}) {
-	var cnt int
+func (p *Producer) flush(conn *Conn, resChan chan<- Frame) {
 	var err error
 
 	defer conn.Close()
-	defer func() { recover() }() // may happen when the ping channel is closed
-	defer func() {
-		if err == nil {
-			err = io.ErrUnexpectedEOF
-		}
-		for req := range pipe {
-			req.Response <- err
-		}
-	}()
+	defer closeFrameChan(resChan)
 
 	for {
 		var frame Frame
 
-		if err = conn.SetReadDeadline(time.Now().Add(p.readTimeout)); err != nil {
-			return
-		}
-
 		if frame, err = conn.ReadFrame(); err != nil {
-			if len(pipe) == 0 {
-				continue
+			if err != io.EOF && err != io.ErrUnexpectedEOF {
+				log.Print(err)
 			}
-
-			// After two consecutive timeouts and when there are pending
-			// requests we assume the response will not come and we're better
-			// off closing the connection and returning an error.
-			if isTimeout(err) {
-				if cnt++; cnt < 2 {
-					continue
-				}
-			}
-
 			return
 		}
 
-		cnt = 0
-
-		switch f := frame.(type) {
-		case Response:
-			switch f {
-			case OK:
-				req := <-pipe
-				req.complete(nil)
-				continue
-
-			case Heartbeat:
-				ping <- struct{}{}
-				continue
-
-			case CloseWait:
-				continue
-			}
-
-		case Error:
-			err = errors.Errorf("closing connection after receiving an error from %s: %s", conn.RemoteAddr(), f)
-			return
-
-		case Message:
-			err = errors.Errorf("closing connection after receiving an unexpected message from %s: %s", conn.RemoteAddr(), f.FrameType())
-			return
-
-		default:
-			err = errors.Errorf("closing connection after receiving an unsupported frame from %s: %s", conn.RemoteAddr(), f.FrameType())
-			return
-		}
+		resChan <- frame
 	}
-}
-
-func (p *Producer) publish(conn *Conn, message []byte) error {
-	return p.write(conn, Pub{Topic: p.topic, Message: message})
-}
-
-func (p *Producer) ping(conn *Conn) error {
-	return p.write(conn, Nop{})
 }
 
 func (p *Producer) write(conn *Conn, cmd Command) (err error) {
@@ -306,6 +292,17 @@ func (p *Producer) write(conn *Conn, cmd Command) (err error) {
 		err = conn.WriteCommand(cmd)
 	}
 	return
+}
+
+func (p *Producer) publish(conn *Conn, message []byte) error {
+	return p.write(conn, Pub{
+		Topic:   p.topic,
+		Message: message,
+	})
+}
+
+func (p *Producer) ping(conn *Conn) error {
+	return p.write(conn, Nop{})
 }
 
 func (p *Producer) sleep(d time.Duration) time.Duration {
@@ -332,4 +329,20 @@ func (r ProducerRequest) complete(err error) {
 	if r.Response != nil {
 		r.Response <- err
 	}
+}
+
+func completeNextProducerRequest(reqs []ProducerRequest, err error) []ProducerRequest {
+	reqs[0].complete(err)
+	return reqs[1:]
+}
+
+func completeAllProducerRequests(reqs []ProducerRequest, err error) []ProducerRequest {
+	for _, req := range reqs {
+		req.complete(err)
+	}
+	return nil
+}
+
+func producerRequestsTimedOut(reqs []ProducerRequest, now time.Time) bool {
+	return len(reqs) != 0 && now.After(reqs[0].Deadline)
 }

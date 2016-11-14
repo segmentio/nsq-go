@@ -104,3 +104,14 @@ func readNextWord(text string) (word string, next string) {
 	}
 	return
 }
+
+func sendCommand(cmdChan chan<- Command, cmd Command) bool {
+	defer func() { recover() }() // catch panics if the channel was already closed
+	cmdChan <- cmd
+	return true
+}
+
+func closeCommand(cmdChan chan<- Command) {
+	defer func() { recover() }() // make the close operation idempotent
+	close(cmdChan)
+}

@@ -155,8 +155,3 @@ func writeFrameHeader(w *bufio.Writer, ftype FrameType, size int) (err error) {
 
 	return
 }
-
-func closeFrameChan(c chan<- Frame) {
-	defer func() { recover() }() // make the close operation idempotent
-	close(c)
-}

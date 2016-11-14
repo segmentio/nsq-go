@@ -1,7 +1,6 @@
 package nsq
 
 import (
-	"io"
 	"log"
 	"sync"
 	"time"
@@ -176,7 +175,7 @@ func (p *Producer) run() {
 
 	shutdown := func(err error) {
 		if conn != nil {
-			closeFrameChan(resChan)
+			close(resChan)
 			conn.Close()
 			conn = nil
 			resChan = nil
@@ -268,18 +267,14 @@ func (p *Producer) run() {
 }
 
 func (p *Producer) flush(conn *Conn, resChan chan<- Frame) {
-	var err error
-
+	defer func() { recover() }() // may happen if the resChan is closed
 	defer conn.Close()
-	defer closeFrameChan(resChan)
 
 	for {
-		var frame Frame
+		frame, err := conn.ReadFrame()
 
-		if frame, err = conn.ReadFrame(); err != nil {
-			if err != io.EOF && err != io.ErrUnexpectedEOF {
-				log.Print(err)
-			}
+		if err != nil {
+			resChan <- Error(err.Error())
 			return
 		}
 

@@ -25,7 +25,6 @@ type ProducerConfig struct {
 // nodes to send messages.
 type Producer struct {
 	// Communication channels of the producer.
-	cmds chan Command
 	reqs chan ProducerRequest
 	done chan struct{}
 	once sync.Once
@@ -87,7 +86,6 @@ func StartProducer(config ProducerConfig) (p *Producer, err error) {
 	}
 
 	p = &Producer{
-		cmds:            make(chan Command, config.MaxConcurrency),
 		reqs:            make(chan ProducerRequest, config.MaxConcurrency),
 		done:            make(chan struct{}),
 		address:         config.Address,

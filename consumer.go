@@ -265,15 +265,9 @@ func (c *Consumer) writeConn(conn *Conn, cmdChan chan Command) {
 	defer conn.Close()
 	defer closeCommand(cmdChan)
 
-	for {
-		select {
-		case cmd := <-cmdChan:
-			if err := c.writeConnCommand(conn, cmd); err != nil {
-				log.Print(err)
-				return
-			}
-
-		case <-c.done:
+	for cmd := range cmdChan {
+		if err := c.writeConnCommand(conn, cmd); err != nil {
+			log.Print(err)
 			return
 		}
 	}

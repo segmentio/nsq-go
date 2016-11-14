@@ -216,7 +216,6 @@ func (p *Producer) run() {
 				}
 
 				retry = 0
-				pending = make([]ProducerRequest, 0)
 				resChan = make(chan Frame, 16)
 				go p.flush(conn, resChan)
 			}

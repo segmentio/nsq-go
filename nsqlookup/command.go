@@ -7,12 +7,18 @@ import (
 	"strings"
 )
 
+// The Command interface is implemented by all types representing client
+// commands sent to nsqlookup servers.
 type Command interface {
+	// Name returns the name of the command.
 	Name() string
 
+	// Write outputs the command to w.
 	Write(w *bufio.Writer) error
 }
 
+// ReadCommand reads cmd from r, or returns an error if no commands could be
+// read.
 func ReadCommand(r *bufio.Reader) (cmd Command, err error) {
 	var line string
 

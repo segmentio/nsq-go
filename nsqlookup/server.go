@@ -1,10 +1,14 @@
 package nsqlookup
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
+	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -13,41 +17,106 @@ import (
 )
 
 const (
-	DefaultReadTimeout  = 5 * time.Second
+	// DefaultPingTimeout is the maximum duration used by default waiting
+	// for ping commands.
+	DefaultPingTimeout = 1 * time.Minute
+
+	// DefaultReadTimeout is the maximum duration used by default for read
+	// operations.
+	DefaultReadTimeout = 5 * time.Second
+
+	// DefaultReadTimeout is the maximum duration used by default for write
+	// operations.
 	DefaultWriteTimeout = 5 * time.Second
 )
 
 var (
-	ErrMissingEngine      = errors.New("missing engine in server configuration")
-	ErrMissingTcpAddress  = errors.New("missing tcp address in server configuration")
+	// ErrMissingEngine is returned by StartServer when the Engine field of the
+	// configuration is set to nil.
+	ErrMissingEngine = errors.New("missing engine in server configuration")
+
+	// ErrMissingTcpAddress is returned by StartServer when neither TcpAddress
+	// nor TcpListener was set on the configuration.
+	ErrMissingTcpAddress = errors.New("missing tcp address in server configuration")
+
+	// ErrMissingHttpAddress is returned by StartServer when neither HttpAddress
+	// nor HttpListener was set on the configuration.
 	ErrMissingHttpAddress = errors.New("missing http address in server configuration")
+
+	errClientMustIdentify  = errors.New("client must identify")
+	errCannotIdentifyAgain = errors.New("cannot identify again")
 )
 
+// The ServerConfig structure is used to configure nsqlookup servers.
 type ServerConfig struct {
-	Engine           Engine
+	// Engine to be used to implement the nsqlookup behavior.
+	//
+	// This field is required to be non-nil in order to succesfuly start a
+	// nsqlookup server.
+	Engine Engine
+
+	// BroadcastAddress is the address advertized by the nsqlookup server.
 	BroadcastAddress string
 
-	TcpAddress  string
+	// TcpAddress is the TCP address that the nsqlookup server will listen on.
+	//
+	// One of TcpAddress or TcpListener has to be set when starting a server.
+	TcpAddress string
+
+	// TcpListener is the TCP listener used by the nsqlookup server to accept
+	// incoming connections.
+	//
+	// When set, the listener is owned by the nsqlookup server that manages it,
+	// and will be closed when the server is stopped.
+	//
+	// One of TcpAddress or TcpListener has to be set when starting a server.
 	TcpListener net.Listener
 
-	HttpAddress  string
+	// HttpAddress is the HTTP address that the nsqlookup server will listen on.
+	//
+	// One of HttpAddress or HttpListener has to be set when starting a server.
+	HttpAddress string
+
+	// HttpListener is the HTTP listener used by the nsqlookup server to accept
+	// incoming connections.
+	//
+	// When set, the listener is owned by the nsqlookup server that manages it,
+	// and will be closed when the server is stopped.
+	//
+	// One of HttpAddress or HttpListener has to be set when starting a server.
 	HttpListener net.Listener
 
-	ReadTimeout  time.Duration
+	// PingTimeout is the maximum duration the server will wait for nsqd nodes
+	// to send ping commands before disconnecting them.
+	PingTimeout time.Duration
+
+	// ReadTimeout is the maximum duration the server will wait for read
+	// operations to complete.
+	ReadTimeout time.Duration
+
+	// WriteTimeout is the maximum duration the server will wait for write
+	// operations to complete.
 	WriteTimeout time.Duration
 }
 
+// Server is an opaque type that represents a nsqlookup server.
 type Server struct {
 	engine Engine
 
+	address  string
 	tcpLstn  net.Listener
 	httpLstn net.Listener
 	join     sync.WaitGroup
+	mutex    sync.Mutex
+	conns    map[net.Conn]bool
 
+	pingTimeout  time.Duration
 	readTimeout  time.Duration
 	writeTimeout time.Duration
 }
 
+// StartServer starts a new nsqlookup server s configured with config, returning
+// an error if either the configuration was invalid or an runtime error occured.
 func StartServer(config ServerConfig) (s *Server, err error) {
 	var tcpLstn net.Listener
 	var httpLstn net.Listener
@@ -65,6 +134,10 @@ func StartServer(config ServerConfig) (s *Server, err error) {
 	if len(config.HttpAddress) == 0 && config.HttpListener == nil {
 		err = ErrMissingHttpAddress
 		return
+	}
+
+	if config.PingTimeout == 0 {
+		config.PingTimeout = DefaultPingTimeout
 	}
 
 	if config.ReadTimeout == 0 {
@@ -97,12 +170,19 @@ func StartServer(config ServerConfig) (s *Server, err error) {
 		}()
 	}
 
+	if len(config.BroadcastAddress) == 0 {
+		config.BroadcastAddress = tcpLstn.Addr().String()
+	}
+
 	s = &Server{
 		engine: config.Engine,
 
+		address:  config.BroadcastAddress,
 		tcpLstn:  tcpLstn,
 		httpLstn: httpLstn,
+		conns:    make(map[net.Conn]bool),
 
+		pingTimeout:  config.PingTimeout,
 		readTimeout:  config.ReadTimeout,
 		writeTimeout: config.WriteTimeout,
 	}
@@ -115,45 +195,208 @@ func StartServer(config ServerConfig) (s *Server, err error) {
 	return
 }
 
+// Stop stops the server s.
+//
+// This method can safely be called multiple times and by multiple goroutines,
+// it blocks until all the internal resources of the nsqlookup server have been
+// released.
 func (s *Server) Stop() {
 	s.tcpLstn.Close()
 	s.httpLstn.Close()
 	s.join.Wait()
 }
 
+func (s *Server) addConn(conn net.Conn) {
+	s.mutex.Lock()
+	s.conns[conn] = true
+	s.mutex.Unlock()
+}
+
+func (s *Server) removeConn(conn net.Conn) {
+	s.mutex.Lock()
+	if s.conns != nil {
+		delete(s.conns, conn)
+	}
+	s.mutex.Unlock()
+}
+
+func (s *Server) closeConns() {
+	s.mutex.Lock()
+
+	// Gracefuly shutdown the connections, if possible only closes the read end
+	// of the connection so in-flights responses aren't abruptly terminated.
+	for conn := range s.conns {
+		switch c := conn.(type) {
+		case *net.TCPConn:
+			c.CloseRead()
+		case *net.UnixConn:
+			c.CloseRead()
+		default:
+			c.Close()
+		}
+	}
+
+	s.conns = nil
+	s.mutex.Unlock()
+}
+
 func (s *Server) serveTcp(lstn net.Listener, join *sync.WaitGroup) {
 	defer join.Done()
 	defer lstn.Close()
+	defer s.closeConns()
 
 	for {
 		conn, err := lstn.Accept()
 
 		if err != nil {
-			if e, ok := err.(interface {
-				Timeout() bool
-			}); ok && e.Timeout() {
+			switch {
+			case isTimeout(err):
+				continue
+			case isTemporary(err):
 				continue
 			}
-
-			if e, ok := err.(interface {
-				Temporary() bool
-			}); ok && e.Temporary() {
-				continue
-			}
-
 			return
 		}
 
+		s.addConn(conn)
 		s.join.Add(1)
-		go s.ServeConn(conn, &s.join)
+		go s.serveConn(conn, &s.join)
 	}
 }
 
-func (s *Server) ServeConn(conn net.Conn, join *sync.WaitGroup) {
+func (s *Server) serveConn(conn net.Conn, join *sync.WaitGroup) {
+	var node NodeInfo
+	var err error
+
 	defer join.Done()
 	defer conn.Close()
+	defer s.removeConn(conn)
 
-	// TODO
+	r := bufio.NewReader(conn)
+	w := bufio.NewWriter(conn)
+
+	for {
+		var cmd Command
+		var res Response
+
+		if err = conn.SetReadDeadline(time.Now().Add(s.pingTimeout)); err != nil {
+			break
+		}
+
+		if cmd, err = ReadCommand(r); err != nil {
+			break
+		}
+
+		switch c := cmd.(type) {
+		case Ping:
+			res, err = s.ping(node)
+
+		case Identify:
+			node, res, err = s.identify(node, c.Info)
+
+		case Register:
+			res, err = s.register(node, c.Topic, c.Channel)
+
+		case Unregister:
+			res, err = s.unregister(node, c.Topic, c.Channel)
+		}
+
+		if err != nil {
+			res = Error{Code: ErrInvalid, Reason: err.Error()}
+		}
+
+		if err = conn.SetWriteDeadline(time.Now().Add(s.writeTimeout)); err != nil {
+			break
+		}
+
+		if err = res.Write(w); err != nil {
+			break
+		}
+
+		if err = w.Flush(); err != nil {
+			break
+		}
+	}
+
+	switch err {
+	case nil, io.EOF, io.ErrUnexpectedEOF:
+	default:
+		log.Print(err)
+	}
+}
+
+func (s *Server) identify(node NodeInfo, info NodeInfo) (id NodeInfo, res RawResponse, err error) {
+	if node != (NodeInfo{}) {
+		err = errCannotIdentifyAgain
+		return
+	}
+
+	self, _ := s.engine.LookupInfo()
+
+	_, sp1, _ := net.SplitHostPort(s.tcpLstn.Addr().String())
+	_, sp2, _ := net.SplitHostPort(s.httpLstn.Addr().String())
+
+	p1, _ := strconv.Atoi(sp1)
+	p2, _ := strconv.Atoi(sp2)
+
+	h, _ := os.Hostname()
+	b, _ := json.Marshal(NodeInfo{
+		BroadcastAddress: s.address,
+		Hostname:         h,
+		TcpPort:          p1,
+		HttpPort:         p2,
+		Version:          self.Version,
+	})
+
+	id, res = info, RawResponse(b)
+	return
+}
+
+func (s *Server) ping(node NodeInfo) (res OK, err error) {
+	if node != (NodeInfo{}) { // ping may arrive before identify
+		err = s.engine.PingNode(node)
+	}
+	return
+}
+
+func (s *Server) register(node NodeInfo, topic string, channel string) (res OK, err error) {
+	if node == (NodeInfo{}) {
+		err = errClientMustIdentify
+		return
+	}
+
+	switch {
+	case len(channel) != 0:
+		err = s.engine.RegisterChannel(node, topic, channel)
+
+	case len(topic) != 0:
+		err = s.engine.RegisterTopic(node, topic)
+
+	default:
+		err = s.engine.RegisterNode(node)
+	}
+
+	return
+}
+
+func (s *Server) unregister(node NodeInfo, topic string, channel string) (res OK, err error) {
+	if node == (NodeInfo{}) {
+		err = errClientMustIdentify
+		return
+	}
+
+	switch {
+	case len(channel) != 0:
+		err = s.engine.UnregisterChannel(node, topic, channel)
+
+	case len(topic) != 0:
+		err = s.engine.UnregisterTopic(node, topic)
+
+	default:
+		err = s.engine.UnregisterNode(node)
+	}
+
+	return
 }
 
 func (s *Server) serveHttp(lstn net.Listener, join *sync.WaitGroup) {

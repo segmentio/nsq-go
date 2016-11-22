@@ -64,3 +64,23 @@ func readError(data []byte) Error {
 		Reason: string(reason),
 	}
 }
+
+func isTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	e, ok := err.(interface {
+		Timeout() bool
+	})
+	return ok && e.Timeout()
+}
+
+func isTemporary(err error) bool {
+	if err == nil {
+		return false
+	}
+	e, ok := err.(interface {
+		Temporary() bool
+	})
+	return ok && e.Temporary()
+}

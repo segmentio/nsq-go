@@ -54,7 +54,7 @@ type Engine interface {
 	// ping command to inform that it is still alive.
 	PingNode(node NodeInfo) error
 
-	// TomstonNode marks topic as tombstoned on node.
+	// TombstoneNode marks topic as tombstoned on node.
 	TombstoneNode(node NodeInfo, topic string) error
 
 	// RegisterTopic is called by nsqlookup servers when topic is being

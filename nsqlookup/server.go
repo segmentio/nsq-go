@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -266,7 +264,6 @@ func (s *Server) serveTcp(lstn net.Listener, join *sync.WaitGroup) {
 
 func (s *Server) serveConn(conn net.Conn, join *sync.WaitGroup) {
 	var node NodeInfo
-	var err error
 
 	defer join.Done()
 	defer conn.Close()
@@ -278,50 +275,36 @@ func (s *Server) serveConn(conn net.Conn, join *sync.WaitGroup) {
 	for done := false; !done; {
 		var cmd Command
 		var res Response
+		var err error
 
-		if err = conn.SetReadDeadline(time.Now().Add(s.pingTimeout)); err != nil {
+		if cmd, err = s.readCommand(conn, r); err == nil {
+			switch c := cmd.(type) {
+			case Ping:
+				res, err = s.ping(node)
+
+			case Identify:
+				node, res, err = s.identify(node, c.Info)
+
+			case Register:
+				res, err = s.register(node, c.Topic, c.Channel)
+
+			case Unregister:
+				res, err = s.unregister(node, c.Topic, c.Channel)
+			}
+		}
+
+		if done = err != nil; done {
+			switch e := err.(type) {
+			case Error:
+				res = e
+			default:
+				res = Error{Code: ErrInvalid, Reason: err.Error()}
+			}
+		}
+
+		if err = s.writeResponse(conn, w, res); err != nil {
 			break
 		}
-
-		if cmd, err = ReadCommand(r); err != nil {
-			break
-		}
-
-		switch c := cmd.(type) {
-		case Ping:
-			res, err = s.ping(node)
-
-		case Identify:
-			node, res, err = s.identify(node, c.Info)
-
-		case Register:
-			res, err = s.register(node, c.Topic, c.Channel)
-
-		case Unregister:
-			res, err = s.unregister(node, c.Topic, c.Channel)
-		}
-
-		if err != nil {
-			done, res = true, Error{Code: ErrInvalid, Reason: err.Error()}
-		}
-
-		if err = conn.SetWriteDeadline(time.Now().Add(s.writeTimeout)); err != nil {
-			break
-		}
-
-		if err = res.Write(w); err != nil {
-			break
-		}
-
-		if err = w.Flush(); err != nil {
-			break
-		}
-	}
-
-	switch err {
-	case nil, io.EOF, io.ErrUnexpectedEOF:
-	default:
-		log.Print(err)
 	}
 }
 
@@ -396,6 +379,22 @@ func (s *Server) unregister(node NodeInfo, topic string, channel string) (res OK
 		err = s.engine.UnregisterNode(node)
 	}
 
+	return
+}
+
+func (s *Server) readCommand(c net.Conn, r *bufio.Reader) (cmd Command, err error) {
+	if err = c.SetReadDeadline(time.Now().Add(s.pingTimeout)); err == nil {
+		cmd, err = ReadCommand(r)
+	}
+	return
+}
+
+func (s *Server) writeResponse(c net.Conn, w *bufio.Writer, r Response) (err error) {
+	if err = c.SetWriteDeadline(time.Now().Add(s.writeTimeout)); err == nil {
+		if err = r.Write(w); err == nil {
+			err = w.Flush()
+		}
+	}
 	return
 }
 

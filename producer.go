@@ -53,11 +53,6 @@ type ProducerRequest struct {
 // variables from the config parameter, or returning an non-nil error if
 // some of the configuration variables were invalid.
 func StartProducer(config ProducerConfig) (p *Producer, err error) {
-	if len(config.Topic) == 0 {
-		err = errors.New("creating a producer requires a non-empty topic")
-		return
-	}
-
 	if len(config.Address) == 0 {
 		config.Address = "localhost:4151"
 	}

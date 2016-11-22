@@ -43,6 +43,7 @@ var (
 
 	errClientMustIdentify  = errors.New("client must identify")
 	errCannotIdentifyAgain = errors.New("cannot identify again")
+	errMissingNode         = errors.New("the node doesn't exist")
 )
 
 // The ServerConfig structure is used to configure nsqlookup servers.
@@ -201,6 +202,7 @@ func StartServer(config ServerConfig) (s *Server, err error) {
 func (s *Server) Stop() {
 	s.tcpLstn.Close()
 	s.httpLstn.Close()
+	s.engine.Close()
 	s.join.Wait()
 }
 
@@ -465,7 +467,7 @@ func (s *Server) serveLookup(res http.ResponseWriter, req *http.Request) {
 
 	s.sendResponse(res, 200, "OK", struct {
 		Producers []NodeInfo `json:"producers"`
-	}{nodes})
+	}{sortedNodes(nodes)})
 }
 
 func (s *Server) serveTopics(res http.ResponseWriter, req *http.Request) {
@@ -482,7 +484,7 @@ func (s *Server) serveTopics(res http.ResponseWriter, req *http.Request) {
 
 	s.sendResponse(res, 200, "OK", struct {
 		Topics []string `json:"topics"`
-	}{topics})
+	}{sortedStrings(topics)})
 }
 
 func (s *Server) serveChannels(res http.ResponseWriter, req *http.Request) {
@@ -507,7 +509,7 @@ func (s *Server) serveChannels(res http.ResponseWriter, req *http.Request) {
 
 	s.sendResponse(res, 200, "OK", struct {
 		Channels []string `json:"channels"`
-	}{channels})
+	}{sortedStrings(channels)})
 }
 
 func (s *Server) serveNodes(res http.ResponseWriter, req *http.Request) {
@@ -524,7 +526,7 @@ func (s *Server) serveNodes(res http.ResponseWriter, req *http.Request) {
 
 	s.sendResponse(res, 200, "OK", struct {
 		Producers []NodeInfo `json:"producers"`
-	}{nodes})
+	}{sortedNodes(nodes)})
 }
 
 func (s *Server) servePing(res http.ResponseWriter, req *http.Request) {

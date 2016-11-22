@@ -2,6 +2,7 @@ package nsqlookup
 
 import (
 	"net"
+	"sort"
 	"strconv"
 )
 
@@ -37,6 +38,10 @@ type EngineInfo struct {
 // The Engine interface must be implemented by types that are intended to be
 // used to power nsqlookup servers.
 type Engine interface {
+	// Close should release all internal state maintained by the engine, it is
+	// called when the nsqlookup server using the engine is shutting down.
+	Close() error
+
 	// RegisterNode is called by nsqlookup servers when a new node is attempting
 	// to register.
 	RegisterNode(node NodeInfo) error
@@ -88,6 +93,33 @@ type Engine interface {
 	// CheckHealth is called by nsqlookup servers to evaluate the health of the
 	// engine.
 	CheckHealth() error
+}
+
+type byNode []NodeInfo
+
+func (n byNode) Len() int {
+	return len(n)
+}
+
+func (n byNode) Swap(i int, j int) {
+	n[i], n[j] = n[j], n[i]
+}
+
+func (n byNode) Less(i int, j int) bool {
+	n1 := &n[i]
+	n2 := &n[j]
+	return (n1.BroadcastAddress < n2.BroadcastAddress) ||
+		(n1.BroadcastAddress == n2.BroadcastAddress && n1.TcpPort < n2.TcpPort)
+}
+
+func sortedNodes(n []NodeInfo) []NodeInfo {
+	sort.Sort(byNode(n))
+	return n
+}
+
+func sortedStrings(s []string) []string {
+	sort.Strings(s)
+	return s
 }
 
 func httpBroadcastAddress(info NodeInfo) string {

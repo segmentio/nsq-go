@@ -275,7 +275,7 @@ func (s *Server) serveConn(conn net.Conn, join *sync.WaitGroup) {
 	r := bufio.NewReader(conn)
 	w := bufio.NewWriter(conn)
 
-	for {
+	for done := false; !done; {
 		var cmd Command
 		var res Response
 
@@ -302,7 +302,7 @@ func (s *Server) serveConn(conn net.Conn, join *sync.WaitGroup) {
 		}
 
 		if err != nil {
-			res = Error{Code: ErrInvalid, Reason: err.Error()}
+			done, res = true, Error{Code: ErrInvalid, Reason: err.Error()}
 		}
 
 		if err = conn.SetWriteDeadline(time.Now().Add(s.writeTimeout)); err != nil {
@@ -327,7 +327,7 @@ func (s *Server) serveConn(conn net.Conn, join *sync.WaitGroup) {
 
 func (s *Server) identify(node NodeInfo, info NodeInfo) (id NodeInfo, res RawResponse, err error) {
 	if node != (NodeInfo{}) {
-		err = errCannotIdentifyAgain
+		id, err = node, errCannotIdentifyAgain
 		return
 	}
 

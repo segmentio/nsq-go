@@ -43,6 +43,7 @@ type Producer struct {
 // ProducerRequest are used to represent operations that are submitted to
 // producers.
 type ProducerRequest struct {
+	Topic    string
 	Message  []byte
 	Response chan<- error
 	Deadline time.Time
@@ -128,11 +129,26 @@ func (p *Producer) Stop() {
 // first unsuccessful attempt to publish the message. It is the responsibility
 // of the caller to retry if necessary.
 func (p *Producer) Publish(message []byte) (err error) {
+	return p.PublishTo(p.topic, message)
+}
+
+// PublishTo sends a message to a specific topic using the producer p, returning
+// an error if it was already closed or if an error occurred while publishing the
+// message.
+//
+// Note that no retry is done internally, the producer will fail after the
+// first unsuccessful attempt to publish the message. It is the responsibility
+// of the caller to retry if necessary.
+func (p *Producer) PublishTo(topic string, message []byte) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = errors.New("publishing to a producer that was already stopped")
 		}
 	}()
+
+	if len(topic) == 0 {
+		return errors.New("no topic set for publishing message")
+	}
 
 	response := make(chan error, 1)
 	deadline := time.Now().Add(p.dialTimeout + p.readTimeout + p.writeTimeout)
@@ -140,6 +156,7 @@ func (p *Producer) Publish(message []byte) (err error) {
 	// Attempts to queue the request so one of the active connections can pick
 	// it up.
 	p.reqs <- ProducerRequest{
+		Topic:    topic,
 		Message:  message,
 		Response: response,
 		Deadline: deadline,
@@ -218,7 +235,7 @@ func (p *Producer) run() {
 				go p.flush(conn, resChan)
 			}
 
-			if err := p.publish(conn, req.Message); err != nil {
+			if err := p.publish(conn, req.Topic, req.Message); err != nil {
 				req.complete(err)
 				shutdown(err)
 				continue
@@ -286,9 +303,9 @@ func (p *Producer) write(conn *Conn, cmd Command) (err error) {
 	return
 }
 
-func (p *Producer) publish(conn *Conn, message []byte) error {
+func (p *Producer) publish(conn *Conn, topic string, message []byte) error {
 	return p.write(conn, Pub{
-		Topic:   p.topic,
+		Topic:   topic,
 		Message: message,
 	})
 }

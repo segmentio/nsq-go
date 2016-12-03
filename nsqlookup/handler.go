@@ -33,16 +33,6 @@ const (
 	DefaultWriteTimeout = 5 * time.Second
 )
 
-var (
-	// ErrMissingEngine is returned by StartServer when the Engine field of the
-	// configuration is set to nil.
-	ErrMissingEngine = errors.New("missing engine in server configuration")
-
-	errClientMustIdentify  = errors.New("client must identify")
-	errCannotIdentifyAgain = errors.New("cannot identify again")
-	errMissingNode         = errors.New("the node doesn't exist")
-)
-
 // The APIHandler satisfies the http.Handler interface and provides the
 // implementation of the nsqlookup http API.
 type APIHandler struct {
@@ -51,7 +41,7 @@ type APIHandler struct {
 	Engine Engine
 }
 
-func (h *APIHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	switch req.URL.Path {
 	case "/lookup":
 		h.serveLookup(res, req)
@@ -85,7 +75,7 @@ func (h *APIHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (h *APIHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		h.sendMethodNotAllowed(res)
 		return
@@ -110,7 +100,7 @@ func (h *APIHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 	}{sortedNodes(nodes)})
 }
 
-func (h *APIHandler) serveTopics(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) serveTopics(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		h.sendMethodNotAllowed(res)
 		return
@@ -127,7 +117,7 @@ func (h *APIHandler) serveTopics(res http.ResponseWriter, req *http.Request) {
 	}{sortedStrings(topics)})
 }
 
-func (h *APIHandler) serveChannels(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) serveChannels(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		h.sendMethodNotAllowed(res)
 		return
@@ -152,7 +142,7 @@ func (h *APIHandler) serveChannels(res http.ResponseWriter, req *http.Request) {
 	}{sortedStrings(channels)})
 }
 
-func (h *APIHandler) serveNodes(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) serveNodes(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		h.sendMethodNotAllowed(res)
 		return
@@ -169,7 +159,7 @@ func (h *APIHandler) serveNodes(res http.ResponseWriter, req *http.Request) {
 	}{sortedNodes(nodes)})
 }
 
-func (h *APIHandler) servePing(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) servePing(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		h.sendMethodNotAllowed(res)
 		return
@@ -183,7 +173,7 @@ func (h *APIHandler) servePing(res http.ResponseWriter, req *http.Request) {
 	h.sendOK(res)
 }
 
-func (h *APIHandler) serveInfo(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) serveInfo(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		h.sendMethodNotAllowed(res)
 		return
@@ -198,7 +188,7 @@ func (h *APIHandler) serveInfo(res http.ResponseWriter, req *http.Request) {
 	h.sendResponse(res, 200, "OK", info)
 }
 
-func (h *APIHandler) serveDeleteTopic(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) serveDeleteTopic(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" && !(req.Method == "GET" && req.URL.Path == "/delete_topic") {
 		h.sendMethodNotAllowed(res)
 		return
@@ -249,7 +239,7 @@ func (h *APIHandler) serveDeleteTopic(res http.ResponseWriter, req *http.Request
 	h.sendResponse(res, 200, "OK", nil)
 }
 
-func (h *APIHandler) serveDeleteChannel(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) serveDeleteChannel(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" && !(req.Method == "GET" && req.URL.Path == "/delete_channel") {
 		h.sendMethodNotAllowed(res)
 		return
@@ -306,7 +296,7 @@ func (h *APIHandler) serveDeleteChannel(res http.ResponseWriter, req *http.Reque
 	h.sendResponse(res, 200, "OK", nil)
 }
 
-func (h *APIHandler) serveTombstoneTopicProducer(res http.ResponseWriter, req *http.Request) {
+func (h APIHandler) serveTombstoneTopicProducer(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" && req.Method != "GET" {
 		h.sendMethodNotAllowed(res)
 		return
@@ -349,7 +339,7 @@ func (h *APIHandler) serveTombstoneTopicProducer(res http.ResponseWriter, req *h
 	h.sendResponse(res, 200, "OK", nil)
 }
 
-func (h *APIHandler) sendResponse(res http.ResponseWriter, status int, text string, value interface{}) {
+func (h APIHandler) sendResponse(res http.ResponseWriter, status int, text string, value interface{}) {
 	res.WriteHeader(status)
 	json.NewEncoder(res).Encode(struct {
 		StatusCode int         `json:"status_code"`
@@ -362,24 +352,24 @@ func (h *APIHandler) sendResponse(res http.ResponseWriter, status int, text stri
 	})
 }
 
-func (h *APIHandler) sendOK(res http.ResponseWriter) {
+func (h APIHandler) sendOK(res http.ResponseWriter) {
 	res.WriteHeader(http.StatusOK)
 	res.Write([]byte("OK"))
 }
 
-func (h *APIHandler) sendNotFound(res http.ResponseWriter) {
+func (h APIHandler) sendNotFound(res http.ResponseWriter) {
 	h.sendError(res, 404, "NOT_FOUND")
 }
 
-func (h *APIHandler) sendMethodNotAllowed(res http.ResponseWriter) {
+func (h APIHandler) sendMethodNotAllowed(res http.ResponseWriter) {
 	h.sendError(res, 405, "METHOD_NOT_ALLOWED")
 }
 
-func (h *APIHandler) sendInternalServerError(res http.ResponseWriter, err error) {
+func (h APIHandler) sendInternalServerError(res http.ResponseWriter, err error) {
 	h.sendError(res, 500, err.Error())
 }
 
-func (h *APIHandler) sendError(res http.ResponseWriter, status int, message string) {
+func (h APIHandler) sendError(res http.ResponseWriter, status int, message string) {
 	res.WriteHeader(status)
 	json.NewEncoder(res).Encode(struct {
 		Message string `json:"message"`
@@ -409,7 +399,7 @@ type NodeHandler struct {
 
 // ServeConn takes ownership of the conn object and starts service the commands
 // that the client sends to the discovery handler.
-func (h *NodeHandler) ServeConn(conn net.Conn) (err error) {
+func (h NodeHandler) ServeConn(conn net.Conn) (err error) {
 	const bufSize = 2048
 
 	var node NodeInfo
@@ -491,7 +481,7 @@ func (h *NodeHandler) ServeConn(conn net.Conn) (err error) {
 	}
 }
 
-func (h *NodeHandler) identify(node NodeInfo, info NodeInfo) (id NodeInfo, res RawResponse, err error) {
+func (h NodeHandler) identify(node NodeInfo, info NodeInfo) (id NodeInfo, res RawResponse, err error) {
 	if node != (NodeInfo{}) {
 		id, err = node, errCannotIdentifyAgain
 		return
@@ -501,14 +491,14 @@ func (h *NodeHandler) identify(node NodeInfo, info NodeInfo) (id NodeInfo, res R
 	return
 }
 
-func (h *NodeHandler) ping(node NodeInfo) (res OK, err error) {
+func (h NodeHandler) ping(node NodeInfo) (res OK, err error) {
 	if node != (NodeInfo{}) { // ping may arrive before identify
 		err = h.Engine.PingNode(node)
 	}
 	return
 }
 
-func (h *NodeHandler) register(node NodeInfo, topic string, channel string) (res OK, err error) {
+func (h NodeHandler) register(node NodeInfo, topic string, channel string) (res OK, err error) {
 	if node == (NodeInfo{}) {
 		err = errClientMustIdentify
 		return
@@ -528,7 +518,7 @@ func (h *NodeHandler) register(node NodeInfo, topic string, channel string) (res
 	return
 }
 
-func (h *NodeHandler) unregister(node NodeInfo, topic string, channel string) (res OK, err error) {
+func (h NodeHandler) unregister(node NodeInfo, topic string, channel string) (res OK, err error) {
 	if node == (NodeInfo{}) {
 		err = errClientMustIdentify
 		return
@@ -548,14 +538,14 @@ func (h *NodeHandler) unregister(node NodeInfo, topic string, channel string) (r
 	return
 }
 
-func (h *NodeHandler) readCommand(c net.Conn, r *bufio.Reader) (cmd Command, err error) {
+func (h NodeHandler) readCommand(c net.Conn, r *bufio.Reader) (cmd Command, err error) {
 	if err = c.SetReadDeadline(time.Now().Add(h.ReadTimeout)); err == nil {
 		cmd, err = ReadCommand(r)
 	}
 	return
 }
 
-func (h *NodeHandler) writeResponse(c net.Conn, w *bufio.Writer, r Response) (err error) {
+func (h NodeHandler) writeResponse(c net.Conn, w *bufio.Writer, r Response) (err error) {
 	if err = c.SetWriteDeadline(time.Now().Add(h.WriteTimeout)); err == nil {
 		if err = r.Write(w); err == nil {
 			err = w.Flush()
@@ -563,3 +553,9 @@ func (h *NodeHandler) writeResponse(c net.Conn, w *bufio.Writer, r Response) (er
 	}
 	return
 }
+
+var (
+	errClientMustIdentify  = errors.New("client must identify")
+	errCannotIdentifyAgain = errors.New("cannot identify again")
+	errMissingNode         = errors.New("the node doesn't exist")
+)

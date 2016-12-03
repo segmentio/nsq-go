@@ -15,6 +15,12 @@ import (
 )
 
 const (
+	// DefaultTcpAddress is the default address used for TCP connections.
+	DefaultTcpAddress = "localhost:4160"
+
+	// DefaultHttpAddress is the default address used for HTTP requests.
+	DefaultHttpAddress = "localhost:4161"
+
 	// DefaultPingTimeout is the maximum duration used by default waiting
 	// for ping commands.
 	DefaultPingTimeout = 1 * time.Minute
@@ -32,14 +38,6 @@ var (
 	// ErrMissingEngine is returned by StartServer when the Engine field of the
 	// configuration is set to nil.
 	ErrMissingEngine = errors.New("missing engine in server configuration")
-
-	// ErrMissingTcpAddress is returned by StartServer when neither TcpAddress
-	// nor TcpListener was set on the configuration.
-	ErrMissingTcpAddress = errors.New("missing tcp address in server configuration")
-
-	// ErrMissingHttpAddress is returned by StartServer when neither HttpAddress
-	// nor HttpListener was set on the configuration.
-	ErrMissingHttpAddress = errors.New("missing http address in server configuration")
 
 	errClientMustIdentify  = errors.New("client must identify")
 	errCannotIdentifyAgain = errors.New("cannot identify again")
@@ -125,14 +123,12 @@ func StartServer(config ServerConfig) (s *Server, err error) {
 		return
 	}
 
-	if len(config.TcpAddress) == 0 && config.TcpListener == nil {
-		err = ErrMissingTcpAddress
-		return
+	if len(config.TcpAddress) == 0 {
+		config.TcpAddress = DefaultTcpAddress
 	}
 
-	if len(config.HttpAddress) == 0 && config.HttpListener == nil {
-		err = ErrMissingHttpAddress
-		return
+	if len(config.HttpAddress) == 0 {
+		config.HttpAddress = DefaultHttpAddress
 	}
 
 	if config.PingTimeout == 0 {

@@ -2,6 +2,7 @@ package nsqlookup
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -395,8 +396,13 @@ type NodeHandler struct {
 
 // ServeConn takes ownership of the conn object and starts service the commands
 // that the client sends to the discovery handler.
-func (h NodeHandler) ServeConn(conn net.Conn) {
+func (h NodeHandler) ServeConn(conn net.Conn, ctx context.Context) {
 	const bufSize = 2048
+
+	go func(conn net.Conn, ctx context.Context) {
+		<-ctx.Done()
+		conn.Close()
+	}(conn, ctx)
 
 	var node NodeInfo
 	var r = bufio.NewReaderSize(conn, bufSize)

@@ -41,6 +41,10 @@ services:
     ports:
       - 4150:4150
       - 4151:4151
+    depends_on:
+      - nsqlookupd-1
+      - nsqlookupd-2
+      - nsqlookupd-3
 
   nsqd-2:
     image: nsqio/nsq
@@ -53,6 +57,10 @@ services:
     ports:
       - 4152:4150
       - 4153:4151
+    depends_on:
+      - nsqlookupd-1
+      - nsqlookupd-2
+      - nsqlookupd-3
 
   nsqd-3:
     image: nsqio/nsq
@@ -65,3 +73,7 @@ services:
     ports:
       - 4154:4150
       - 4155:4151
+    depends_on:
+      - nsqlookupd-1
+      - nsqlookupd-2
+      - nsqlookupd-3

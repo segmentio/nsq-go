@@ -211,7 +211,7 @@ func (e *LocalEngine) LookupChannels(topic string) (channels []string, err error
 
 func (e *LocalEngine) LookupInfo() (info EngineInfo, err error) {
 	info.Type = "local"
-	info.Version = "github.com/segmentio/nsq-go/nsqlookup:local"
+	info.Version = "0.3.8"
 	return
 }
 

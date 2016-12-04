@@ -26,6 +26,15 @@ func testEngine(t *testing.T, do func(*testing.T, Engine)) {
 				})
 			},
 		},
+		{
+			Type: "consul",
+			New: func() Engine {
+				return NewConsulEngine(ConsulConfig{
+					NodeTimeout:      nodeTimeout,
+					TombstoneTimeout: tombTimeout,
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {

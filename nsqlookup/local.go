@@ -8,7 +8,7 @@ import (
 const (
 	// DefaultLocalEngineNodeTimeout is the maximum amount of time an idle node
 	// will be kept by default in a local engine.
-	DefaultLocalEngineNodeTimeout = 2 * DefaultPingTimeout
+	DefaultLocalEngineNodeTimeout = 2 * DefaultReadTimeout
 
 	// DefaultLocalEngineTombstoneTimeout is the maximum amount of time a
 	// tombstone rule is kept by default in a local engine.

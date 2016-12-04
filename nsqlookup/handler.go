@@ -20,17 +20,13 @@ const (
 	// DefaultHttpAddress is the default address used for HTTP requests.
 	DefaultHttpAddress = "localhost:4161"
 
-	// DefaultPingTimeout is the maximum duration used by default waiting
-	// for ping commands.
-	DefaultPingTimeout = 1 * time.Minute
-
-	// DefaultReadTimeout is the maximum duration used by default for read
-	// operations.
-	DefaultReadTimeout = 5 * time.Second
+	// DefaultReadTimeout is the maximum duration used by default waiting
+	// for commands.
+	DefaultReadTimeout = 1 * time.Minute
 
 	// DefaultReadTimeout is the maximum duration used by default for write
 	// operations.
-	DefaultWriteTimeout = 5 * time.Second
+	DefaultWriteTimeout = 10 * time.Second
 )
 
 // The APIHandler satisfies the http.Handler interface and provides the
@@ -430,6 +426,14 @@ func (h NodeHandler) ServeConn(conn net.Conn) (err error) {
 	if len(h.Info.Version) == 0 {
 		info, _ := h.Engine.LookupInfo()
 		h.Info.Version = info.Version
+	}
+
+	if h.ReadTimeout == 0 {
+		h.ReadTimeout = DefaultReadTimeout
+	}
+
+	if h.WriteTimeout == 0 {
+		h.WriteTimeout = DefaultWriteTimeout
 	}
 
 	for {

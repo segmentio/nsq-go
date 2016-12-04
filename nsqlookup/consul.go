@@ -37,7 +37,7 @@ type ConsulEngine struct {
 }
 
 type consulNode struct {
-	mutex   sync.Mutex
+	mutex   sync.RWMutex
 	sid     string
 	err     error
 	expTime time.Time
@@ -108,6 +108,49 @@ func (e *ConsulEngine) Close() (err error) {
 }
 
 func (e *ConsulEngine) RegisterNode(node NodeInfo) (err error) {
+	var sid string
+	var now = time.Now()
+
+	if sid, err = e.session(node, now); err != nil {
+		return
+	}
+
+	if len(sid) == 0 {
+		k := httpBroadcastAddress(node)
+		n := &consulNode{
+			expTime: now.Add(e.nodeTimeout),
+		}
+		n.mutex.Lock()
+		e.mutex.Lock()
+
+		if n := e.nodes[k]; n != nil {
+			if now.After(n.expTime) {
+				err = errMissingNode
+			} else {
+				sid = n.sid
+				err = n.err
+			}
+			e.mutex.Unlock()
+			return
+		}
+
+		e.nodes[k] = n
+		e.mutex.Unlock()
+
+		if sid, err = e.createSession(); err != nil {
+			n.err = err
+		} else {
+			n.sid = sid
+		}
+
+		n.mutex.Unlock()
+
+		if err != nil {
+			e.mutex.Lock()
+			delete(e.nodes, k)
+			e.mutex.Unlock()
+		}
+	}
 
 	return
 }
@@ -118,7 +161,14 @@ func (e *ConsulEngine) UnregisterNode(node NodeInfo) (err error) {
 }
 
 func (e *ConsulEngine) PingNode(node NodeInfo) (err error) {
+	var sid string
+	var now = time.Now()
 
+	if sid, err = e.session(node, now); err != nil {
+		return
+	}
+
+	err = e.renewSession(sid)
 	return
 }
 
@@ -178,46 +228,24 @@ func (e *ConsulEngine) CheckHealth() (err error) {
 	return
 }
 
-func (e *ConsulEngine) session(node string) (sid string, err error) {
+func (e *ConsulEngine) session(node NodeInfo, now time.Time) (sid string, err error) {
+	key := httpBroadcastAddress(node)
 	e.mutex.RLock()
-
 	if e.nodes == nil {
 		err = io.ErrClosedPipe
-	} else if n := e.nodes[node]; n != nil {
-		sid = n.sid
-		err = n.err
 	}
-
+	n := e.nodes[key]
 	e.mutex.RUnlock()
 
-	if len(sid) == 0 && err == nil {
-		n := &consulNode{}
-		n.mutex.Lock()
-		e.mutex.Lock()
-
-		if n := e.nodes[node]; n != nil {
+	if n != nil {
+		n.mutex.RLock()
+		if now.After(n.expTime) {
+			err = errMissingNode
+		} else {
 			sid = n.sid
 			err = n.err
-			e.mutex.Unlock()
-			return
 		}
-
-		e.nodes[node] = n
-		e.mutex.Unlock()
-
-		if sid, err = e.createSession(); err != nil {
-			n.err = err
-		} else {
-			n.sid = sid
-		}
-
-		n.mutex.Unlock()
-
-		if err != nil {
-			e.mutex.Lock()
-			delete(e.nodes, node)
-			e.mutex.Unlock()
-		}
+		n.mutex.RUnlock()
 	}
 
 	return
@@ -245,7 +273,7 @@ func (e *ConsulEngine) createSession() (sid string, err error) {
 		LockDelay: "15s",
 		Name:      "nsqlookupd consul engine",
 		Behavior:  "delete",
-		TTL:       fmt.Sprint("%ds", int(ttl.Seconds())),
+		TTL:       fmt.Sprintf("%ds", int(ttl.Seconds())),
 	}, &session); err != nil {
 		return
 	}
@@ -260,6 +288,38 @@ func (e *ConsulEngine) destroySession(sid string) error {
 
 func (e *ConsulEngine) renewSession(sid string) error {
 	return e.put("/v1/session/renew/"+sid, nil, nil)
+}
+
+func (e *ConsulEngine) getKV(key string, value interface{}) (flags uint64, err error) {
+	var kv []struct {
+		Value []byte
+		Flags uint64
+	}
+
+	if err = e.get("/v1/kv/"+key, &kv); err != nil {
+		return
+	}
+
+	if len(kv) == 0 {
+		err = errMissingNode
+	} else {
+		flags, err = kv[0].Flags, json.Unmarshal(kv[0].Value, value)
+	}
+
+	return
+}
+
+func (e *ConsulEngine) setKV(key string, sid string, flags uint64, value interface{}) (err error) {
+	var b []byte
+
+	if b, err = json.Marshal(value); err != nil {
+		return
+	}
+
+	return e.put(fmt.Sprintf("/v1/kv/%s?flags=%d", key, flags), struct {
+		Value   []byte
+		Session string
+	}{b, sid}, nil)
 }
 
 func (e *ConsulEngine) get(path string, recv interface{}) error {

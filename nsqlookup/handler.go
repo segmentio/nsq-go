@@ -325,7 +325,7 @@ func (h APIHandler) serveTombstoneTopicProducer(res http.ResponseWriter, req *ht
 		return
 	}
 
-	if err := h.Engine.TombstoneNode(NodeInfo{
+	if err := h.Engine.TombstoneTopic(NodeInfo{
 		BroadcastAddress: host,
 		HttpPort:         intport,
 	}, topic); err != nil {

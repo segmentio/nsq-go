@@ -109,7 +109,7 @@ func (e *LocalEngine) PingNode(node NodeInfo) error {
 	return err
 }
 
-func (e *LocalEngine) TombstoneNode(node NodeInfo, topic string) error {
+func (e *LocalEngine) TombstoneTopic(node NodeInfo, topic string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.tombstoneTopic(topic, time.Now().Add(e.tombTimeout))
@@ -174,28 +174,43 @@ func (e *LocalEngine) LookupProducers(topic string) (producers []NodeInfo, err e
 }
 
 func (e *LocalEngine) LookupTopics() (topics []string, err error) {
+	set := make(map[string]bool)
 	e.mutex.RLock()
 
 	for _, node := range e.nodes {
-		topics = node.appendTopics(topics)
+		node.lookupTopics(set)
 	}
 
 	e.mutex.RUnlock()
+	topics = make([]string, 0, len(set))
+
+	for topic := range set {
+		topics = append(topics, topic)
+	}
+
 	return
 }
 
 func (e *LocalEngine) LookupChannels(topic string) (channels []string, err error) {
+	set := make(map[string]bool)
 	e.mutex.RLock()
 
 	for _, node := range e.nodes {
-		channels = node.appendChannels(topic, channels)
+		node.lookupChannels(topic, set)
 	}
 
 	e.mutex.RUnlock()
+	channels = make([]string, 0, len(set))
+
+	for topic := range set {
+		channels = append(channels, topic)
+	}
+
 	return
 }
 
 func (e *LocalEngine) LookupInfo() (info EngineInfo, err error) {
+	info.Type = "local"
 	info.Version = "github.com/segmentio/nsq-go/nsqlookup:local"
 	return
 }
@@ -225,10 +240,10 @@ func (e *LocalEngine) get(node NodeInfo) (n *localNode, err error) {
 func (e *LocalEngine) run() {
 	defer close(e.join)
 
-	t1 := time.NewTimer(e.nodeTimeout / 2)
+	t1 := time.NewTicker(e.nodeTimeout / 2)
 	defer t1.Stop()
 
-	t2 := time.NewTimer(e.tombTimeout / 2)
+	t2 := time.NewTicker(e.tombTimeout / 2)
 	defer t2.Stop()
 
 	for {
@@ -313,17 +328,16 @@ func (n *localNode) tombstoneTopic(topic string, exp time.Time) {
 	n.mutex.Unlock()
 }
 
-func (n *localNode) appendTopics(topics []string) []string {
+func (n *localNode) lookupTopics(topics map[string]bool) {
 	n.mutex.RLock()
 
 	for topic := range n.topics {
 		if _, skip := n.tombs[topic]; !skip {
-			topics = append(topics, topic)
+			topics[topic] = true
 		}
 	}
 
 	n.mutex.RUnlock()
-	return topics
 }
 
 func (n *localNode) registerChannel(topic string, channel string) {
@@ -351,17 +365,16 @@ func (n *localNode) unregisterChannel(topic string, channel string) {
 	n.mutex.RUnlock()
 }
 
-func (n *localNode) appendChannels(topic string, channels []string) []string {
+func (n *localNode) lookupChannels(topic string, channels map[string]bool) {
 	n.mutex.RLock()
 
 	if _, skip := n.tombs[topic]; !skip {
 		if t, ok := n.topics[topic]; ok {
-			channels = t.appendChannels(channels)
+			t.lookupChannels(channels)
 		}
 	}
 
 	n.mutex.RUnlock()
-	return channels
 }
 
 func (n *localNode) has(topic string) (ok bool) {
@@ -416,13 +429,12 @@ func (t *localTopic) unregisterChannel(channel string) {
 	t.mutex.Unlock()
 }
 
-func (t *localTopic) appendChannels(channels []string) []string {
+func (t *localTopic) lookupChannels(channels map[string]bool) {
 	t.mutex.RLock()
 
 	for channel := range t.channels {
-		channels = append(channels, channel)
+		channels[channel] = true
 	}
 
 	t.mutex.RUnlock()
-	return channels
 }

@@ -31,6 +31,9 @@ type NodeInfo struct {
 
 // The EngineInfo structure carries information about a nsqlookup engine.
 type EngineInfo struct {
+	// Type of the engine.
+	Type string `json:"type"`
+
 	// Version represents the version of the nsqlookup engine.
 	Version string `json:"version"`
 }
@@ -54,8 +57,8 @@ type Engine interface {
 	// ping command to inform that it is still alive.
 	PingNode(node NodeInfo) error
 
-	// TombstoneNode marks topic as tombstoned on node.
-	TombstoneNode(node NodeInfo, topic string) error
+	// TombstoneTopic marks topic as tombstoned on node.
+	TombstoneTopic(node NodeInfo, topic string) error
 
 	// RegisterTopic is called by nsqlookup servers when topic is being
 	// registered on node.

@@ -11,7 +11,7 @@ import (
 
 const (
 	nodeTimeout = 1 * time.Minute
-	tombTimeout = 100 * time.Millisecond
+	tombTimeout = 50 * time.Millisecond
 )
 
 func init() {

@@ -3,6 +3,7 @@ package nsqlookup
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 )
 
@@ -83,4 +84,11 @@ func isTemporary(err error) bool {
 		Temporary() bool
 	})
 	return ok && e.Temporary()
+}
+
+func appendError(err error, e error) error {
+	if err == nil {
+		return e
+	}
+	return errors.New(err.Error() + "; " + e.Error())
 }

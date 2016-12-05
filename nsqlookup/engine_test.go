@@ -204,7 +204,7 @@ func TestEngineTombstoneTopic(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			checkEqualTopics(t, []string{"B", "C"}, topics2)
+			checkEqualTopics(t, []string{"A", "B", "C"}, topics2)
 		})
 
 		// Sleep for a little while to give time to the tombstone to expire.

@@ -3,6 +3,11 @@ version: '2'
 # Use this docker-compose file to setup the test environment before running the
 # tests.
 services:
+  consul:
+    image: consul:latest
+    command: agent -server -dev -log-level debug
+    network_mode: host
+
   nsqlookupd-1:
     image: nsqio/nsq
     command: >

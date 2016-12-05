@@ -64,9 +64,7 @@ func testEngine(t *testing.T, do func(*testing.T, Engine)) {
 
 func TestEngineClose(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
-		if err := e.Close(); err != nil {
-			t.Error(err)
-		}
+		checkNilError(t, e.Close())
 	})
 }
 
@@ -80,17 +78,13 @@ func TestEngineRegisterNode(t *testing.T) {
 
 		for _, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
-				if err := e.RegisterNode(node); err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, e.RegisterNode(node))
 			})
 		}
 
 		t.Run("lookup-nodes", func(t *testing.T) {
 			nodes2, err := e.LookupNodes()
-			if err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, err)
 			checkEqualNodes(t, nodes1, nodes2)
 		})
 	})
@@ -105,23 +99,33 @@ func TestEngineUnregisterNode(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			if err := e.RegisterNode(node); err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, e.RegisterNode(node))
+		}
+
+		for _, channel := range [...]string{"1", "2", "3"} {
+			checkNilError(t, e.RegisterChannel(nodes1[0], "A", channel))
 		}
 
 		t.Run("unregister", func(t *testing.T) {
-			if err := e.UnregisterNode(nodes1[0]); err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, e.UnregisterNode(nodes1[0]))
 		})
 
 		t.Run("lookup-nodes", func(t *testing.T) {
 			nodes2, err := e.LookupNodes()
-			if err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, err)
 			checkEqualNodes(t, nodes1[1:], nodes2)
+		})
+
+		t.Run("lookup-topics", func(t *testing.T) {
+			topics, err := e.LookupTopics()
+			checkNilError(t, err)
+			checkEqualTopics(t, nil, topics)
+		})
+
+		t.Run("lookup-channels", func(t *testing.T) {
+			channels, err := e.LookupChannels("A")
+			checkNilError(t, err)
+			checkEqualChannels(t, nil, channels)
 		})
 	})
 }
@@ -135,16 +139,12 @@ func TestEnginePingNode(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			if err := e.RegisterNode(node); err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, e.RegisterNode(node))
 		}
 
 		for _, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
-				if err := e.PingNode(node); err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, e.PingNode(node))
 			})
 		}
 	})
@@ -165,25 +165,19 @@ func TestEngineTombstoneTopic(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			if err := e.RegisterNode(node); err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, e.RegisterNode(node))
 		}
 
 		for i, node := range nodes1 {
 			for _, topic := range topics1[i] {
-				if err := e.RegisterTopic(node, topic); err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, e.RegisterTopic(node, topic))
 			}
 		}
 
 		t.Run("tombstone", func(t *testing.T) {
 			for _, node := range nodes1 {
 				t.Run(node.Hostname, func(t *testing.T) {
-					if err := e.TombstoneTopic(node, "A"); err != nil {
-						t.Error(err)
-					}
+					checkNilError(t, e.TombstoneTopic(node, "A"))
 				})
 			}
 		})
@@ -198,18 +192,14 @@ func TestEngineTombstoneTopic(t *testing.T) {
 		} {
 			t.Run(test.topic, func(t *testing.T) {
 				nodes, err := e.LookupProducers(test.topic)
-				if err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, err)
 				checkEqualNodes(t, test.nodes, nodes)
 			})
 		}
 
 		t.Run("lookup-topics", func(t *testing.T) {
 			topics2, err := e.LookupTopics()
-			if err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, err)
 			checkEqualTopics(t, []string{"A", "B", "C"}, topics2)
 		})
 
@@ -226,18 +216,14 @@ func TestEngineTombstoneTopic(t *testing.T) {
 		} {
 			t.Run(test.topic, func(t *testing.T) {
 				nodes, err := e.LookupProducers(test.topic)
-				if err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, err)
 				checkEqualNodes(t, test.nodes, nodes)
 			})
 		}
 
 		t.Run("lookup-topics", func(t *testing.T) {
 			topics2, err := e.LookupTopics()
-			if err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, err)
 			checkEqualTopics(t, []string{"A", "B", "C"}, topics2)
 		})
 	})
@@ -258,18 +244,14 @@ func TestEngineRegisterTopic(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			if err := e.RegisterNode(node); err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, e.RegisterNode(node))
 		}
 
 		for i, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
 				for _, topic := range topics1[i] {
 					t.Run(topic, func(t *testing.T) {
-						if err := e.RegisterTopic(node, topic); err != nil {
-							t.Error(err)
-						}
+						checkNilError(t, e.RegisterTopic(node, topic))
 					})
 				}
 			})
@@ -286,18 +268,14 @@ func TestEngineRegisterTopic(t *testing.T) {
 		} {
 			t.Run(test.topic, func(t *testing.T) {
 				nodes, err := e.LookupProducers(test.topic)
-				if err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, err)
 				checkEqualNodes(t, test.nodes, nodes)
 			})
 		}
 
 		t.Run("lookup-topics", func(t *testing.T) {
 			topics2, err := e.LookupTopics()
-			if err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, err)
 			checkEqualTopics(t, []string{"A", "B", "C"}, topics2)
 		})
 	})
@@ -318,24 +296,18 @@ func TestEngineUnregisterTopic(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			if err := e.RegisterNode(node); err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, e.RegisterNode(node))
 		}
 
 		for i, node := range nodes1 {
 			for _, topic := range topics1[i] {
-				if err := e.RegisterTopic(node, topic); err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, e.RegisterTopic(node, topic))
 			}
 		}
 
 		for _, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
-				if err := e.UnregisterTopic(node, "A"); err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, e.UnregisterTopic(node, "A"))
 			})
 		}
 
@@ -350,19 +322,21 @@ func TestEngineUnregisterTopic(t *testing.T) {
 		} {
 			t.Run(test.topic, func(t *testing.T) {
 				nodes, err := e.LookupProducers(test.topic)
-				if err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, err)
 				checkEqualNodes(t, test.nodes, nodes)
 			})
 		}
 
 		t.Run("lookup-topics", func(t *testing.T) {
 			topics2, err := e.LookupTopics()
-			if err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, err)
 			checkEqualTopics(t, []string{"B", "C"}, topics2)
+		})
+
+		t.Run("lookup-channels", func(t *testing.T) {
+			channels, err := e.LookupChannels("A")
+			checkNilError(t, err)
+			checkEqualChannels(t, nil, channels)
 		})
 	})
 }
@@ -382,18 +356,14 @@ func TestEngineRegisterChannel(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			if err := e.RegisterNode(node); err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, e.RegisterNode(node))
 		}
 
 		for i, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
 				for _, channel := range channels1[i] {
 					t.Run(channel, func(t *testing.T) {
-						if err := e.RegisterChannel(node, "A", channel); err != nil {
-							t.Error(err)
-						}
+						checkNilError(t, e.RegisterChannel(node, "A", channel))
 					})
 				}
 			})
@@ -401,9 +371,7 @@ func TestEngineRegisterChannel(t *testing.T) {
 
 		t.Run("lookup-channels", func(t *testing.T) {
 			channels2, err := e.LookupChannels("A")
-			if err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, err)
 			checkEqualChannels(t, []string{"1", "2", "3"}, channels2)
 		})
 	})
@@ -424,32 +392,24 @@ func TestEngineUnregisterChannel(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			if err := e.RegisterNode(node); err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, e.RegisterNode(node))
 		}
 
 		for i, node := range nodes1 {
 			for _, channel := range channels1[i] {
-				if err := e.RegisterChannel(node, "A", channel); err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, e.RegisterChannel(node, "A", channel))
 			}
 		}
 
 		for _, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
-				if err := e.UnregisterChannel(node, "A", "1"); err != nil {
-					t.Error(err)
-				}
+				checkNilError(t, e.UnregisterChannel(node, "A", "1"))
 			})
 		}
 
 		t.Run("lookup-channels", func(t *testing.T) {
 			channels2, err := e.LookupChannels("A")
-			if err != nil {
-				t.Error(err)
-			}
+			checkNilError(t, err)
 			checkEqualChannels(t, []string{"2", "3"}, channels2)
 		})
 	})
@@ -457,9 +417,7 @@ func TestEngineUnregisterChannel(t *testing.T) {
 
 func TestEngineCheckHealth(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
-		if err := e.CheckHealth(); err != nil {
-			t.Error(err)
-		}
+		checkNilError(t, e.CheckHealth())
 	})
 }
 
@@ -512,5 +470,11 @@ func checkEqualChannels(t *testing.T, c1 []string, c2 []string) {
 		t.Error("bad channels")
 		t.Log("<<<", c1)
 		t.Log(">>>", c2)
+	}
+}
+
+func checkNilError(t *testing.T, err error) {
+	if err != nil {
+		t.Error(err)
 	}
 }

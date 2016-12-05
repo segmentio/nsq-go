@@ -401,8 +401,8 @@ func (e *ConsulEngine) LookupInfo(ctx context.Context) (info EngineInfo, err err
 	return
 }
 
-func (e *ConsulEngine) CheckHealth(ctx context.Context) (err error) {
-	return
+func (e *ConsulEngine) CheckHealth(ctx context.Context) error {
+	return e.get(ctx, "/v1/agent/self", nil)
 }
 
 func (e *ConsulEngine) session(node NodeInfo, now time.Time) (sid string, err error) {

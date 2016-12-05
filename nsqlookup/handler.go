@@ -415,7 +415,7 @@ type NodeHandler struct {
 
 // ServeConn takes ownership of the conn object and starts service the commands
 // that the client sends to the discovery handler.
-func (h NodeHandler) ServeConn(conn net.Conn, ctx context.Context) {
+func (h NodeHandler) ServeConn(ctx context.Context, conn net.Conn) {
 	const bufSize = 2048
 
 	var node NodeInfo

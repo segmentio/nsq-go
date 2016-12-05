@@ -475,8 +475,8 @@ func (h NodeHandler) ServeConn(ctx context.Context, conn net.Conn) {
 
 	defer close(resChan)
 
-	go h.readLoop(conn, r, cmdChan, errChan, doneChan)
-	go h.writeLoop(conn, w, resChan, errChan, doneChan)
+	go h.readLoop(ctx, conn, r, cmdChan, errChan)
+	go h.writeLoop(ctx, conn, w, resChan, errChan)
 
 	for {
 		var cmd Command
@@ -588,7 +588,7 @@ func (h NodeHandler) unregister(node NodeInfo, topic string, channel string, ctx
 	return
 }
 
-func (h NodeHandler) readLoop(conn net.Conn, r *bufio.Reader, cmdChan chan<- Command, errChan chan<- error, doneChan <-chan struct{}) {
+func (h NodeHandler) readLoop(ctx context.Context, conn net.Conn, r *bufio.Reader, cmdChan chan<- Command, errChan chan<- error) {
 	for {
 		for attempt := 0; true; attempt++ {
 			var cmd Command
@@ -600,7 +600,7 @@ func (h NodeHandler) readLoop(conn net.Conn, r *bufio.Reader, cmdChan chan<- Com
 			}
 
 			if attempt < 10 && isTemporary(err) && !isTimeout(err) {
-				sleep(backoff(attempt, 1*time.Second), doneChan)
+				sleep(ctx, backoff(attempt, 1*time.Second))
 				continue
 			}
 
@@ -617,7 +617,7 @@ func (h NodeHandler) readCommand(c net.Conn, r *bufio.Reader) (cmd Command, err 
 	return
 }
 
-func (h NodeHandler) writeLoop(conn net.Conn, w *bufio.Writer, resChan <-chan Response, errChan chan<- error, doneChan <-chan struct{}) {
+func (h NodeHandler) writeLoop(ctx context.Context, conn net.Conn, w *bufio.Writer, resChan <-chan Response, errChan chan<- error) {
 	for res := range resChan {
 		for attempt := 0; true; attempt++ {
 			err := h.writeResponse(conn, w, res)
@@ -627,7 +627,7 @@ func (h NodeHandler) writeLoop(conn net.Conn, w *bufio.Writer, resChan <-chan Re
 			}
 
 			if attempt < 10 && isTemporary(err) && !isTimeout(err) {
-				sleep(backoff(attempt, 1*time.Second), doneChan)
+				sleep(ctx, backoff(attempt, 1*time.Second))
 				attempt++
 				continue
 			}

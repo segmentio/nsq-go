@@ -3,6 +3,7 @@ package nsqlookup
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -102,11 +103,11 @@ func backoff(attempt int, max time.Duration) time.Duration {
 	return d
 }
 
-func sleep(d time.Duration, cancel <-chan struct{}) {
+func sleep(ctx context.Context, d time.Duration) {
 	timer := time.NewTimer(d)
 	defer timer.Stop()
 	select {
 	case <-timer.C:
-	case <-cancel:
+	case <-ctx.Done():
 	}
 }

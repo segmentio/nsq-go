@@ -493,16 +493,16 @@ func (h NodeHandler) ServeConn(ctx context.Context, conn net.Conn) {
 
 		switch c := cmd.(type) {
 		case Ping:
-			res, err = h.ping(node, engineContext(ctx))
+			res, err = h.ping(engineContext(ctx), node)
 
 		case Identify:
-			node, res, err = h.identify(node, c.Info, engineContext(ctx))
+			node, res, err = h.identify(engineContext(ctx), node, c.Info)
 
 		case Register:
-			res, err = h.register(node, c.Topic, c.Channel, engineContext(ctx))
+			res, err = h.register(engineContext(ctx), node, c.Topic, c.Channel)
 
 		case Unregister:
-			node, res, err = h.unregister(node, c.Topic, c.Channel, engineContext(ctx))
+			node, res, err = h.unregister(engineContext(ctx), node, c.Topic, c.Channel)
 
 		default:
 			res = Error{Code: ErrInvalid, Reason: "unknown command"}
@@ -527,7 +527,7 @@ func (h NodeHandler) ServeConn(ctx context.Context, conn net.Conn) {
 	}
 }
 
-func (h NodeHandler) identify(node NodeInfo, info NodeInfo, ctx context.Context) (id NodeInfo, res RawResponse, err error) {
+func (h NodeHandler) identify(ctx context.Context, node NodeInfo, info NodeInfo) (id NodeInfo, res RawResponse, err error) {
 	if node != (NodeInfo{}) {
 		id, err = node, errCannotIdentifyAgain
 		return
@@ -537,14 +537,14 @@ func (h NodeHandler) identify(node NodeInfo, info NodeInfo, ctx context.Context)
 	return
 }
 
-func (h NodeHandler) ping(node NodeInfo, ctx context.Context) (res OK, err error) {
+func (h NodeHandler) ping(ctx context.Context, node NodeInfo) (res OK, err error) {
 	if node != (NodeInfo{}) { // ping may arrive before identify
 		err = h.Engine.PingNode(ctx, node)
 	}
 	return
 }
 
-func (h NodeHandler) register(node NodeInfo, topic string, channel string, ctx context.Context) (res OK, err error) {
+func (h NodeHandler) register(ctx context.Context, node NodeInfo, topic string, channel string) (res OK, err error) {
 	if node == (NodeInfo{}) {
 		err = errClientMustIdentify
 		return
@@ -564,7 +564,7 @@ func (h NodeHandler) register(node NodeInfo, topic string, channel string, ctx c
 	return
 }
 
-func (h NodeHandler) unregister(node NodeInfo, topic string, channel string, ctx context.Context) (id NodeInfo, res OK, err error) {
+func (h NodeHandler) unregister(ctx context.Context, node NodeInfo, topic string, channel string) (id NodeInfo, res OK, err error) {
 	if node == (NodeInfo{}) {
 		err = errClientMustIdentify
 		return

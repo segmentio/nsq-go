@@ -327,11 +327,11 @@ func (e *ConsulEngine) LookupNodes(ctx context.Context) ([]NodeInfo, error) {
 func (e *ConsulEngine) LookupProducers(ctx context.Context, topic string) (producers []NodeInfo, err error) {
 	now := time.Now()
 
-	resChan1 := make(chan []NodeInfo, 1)
-	resChan2 := make(chan []NodeInfo, 1)
+	resChan1 := make(chan []NodeInfo)
+	resChan2 := make(chan []NodeInfo)
 
-	errChan1 := make(chan error, 1)
-	errChan2 := make(chan error, 1)
+	errChan1 := make(chan error)
+	errChan2 := make(chan error)
 
 	lookup := func(key string, res chan<- []NodeInfo, err chan<- error) {
 		if n, e := e.getNodes(ctx, key, now); e != nil {

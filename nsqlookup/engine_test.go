@@ -52,7 +52,7 @@ func testEngine(t *testing.T, do func(context.Context, *testing.T, Engine)) {
 			e := test.New(fmt.Sprintf("nsqlookup-test-%08x", rand.Int()%0xFFFFFFFF))
 			defer e.Close()
 
-			c, cancel := context.WithDeadline(context.Background(), time.Now().Add(1*time.Second))
+			c, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
 			if info, err := e.LookupInfo(c); err != nil {

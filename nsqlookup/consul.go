@@ -110,7 +110,7 @@ func (e *ConsulEngine) Close() (err error) {
 		e.nodes = nil
 		e.mutex.Unlock()
 
-		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(DefaultEngineTimeout))
+		ctx, cancel := context.WithTimeout(context.Background(), DefaultEngineTimeout)
 		defer cancel()
 
 		join := &sync.WaitGroup{}

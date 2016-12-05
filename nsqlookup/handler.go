@@ -51,7 +51,7 @@ func (h APIHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		h.EngineTimeout = DefaultEngineTimeout
 	}
 
-	ctx, _ := context.WithDeadline(req.Context(), time.Now().Add(h.EngineTimeout))
+	ctx, _ := context.WithTimeout(req.Context(), h.EngineTimeout)
 	req = req.WithContext(ctx)
 
 	switch req.URL.Path {
@@ -439,7 +439,7 @@ func (h NodeHandler) ServeConn(conn net.Conn, ctx context.Context) {
 	}
 
 	engineContext := func(ctx context.Context) context.Context {
-		ctx, _ = context.WithDeadline(ctx, time.Now().Add(h.EngineTimeout))
+		ctx, _ = context.WithTimeout(ctx, h.EngineTimeout)
 		return ctx
 	}
 

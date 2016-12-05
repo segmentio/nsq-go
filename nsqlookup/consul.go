@@ -591,19 +591,19 @@ func (e *ConsulEngine) key(key string) string {
 	return path.Join("/v1/kv", e.namespace, key)
 }
 
-func (e *ConsulEngine) get(path string, recv interface{}) error {
-	return e.do("GET", path, nil, recv)
+func (e *ConsulEngine) get(url string, recv interface{}) error {
+	return e.do("GET", url, nil, recv)
 }
 
-func (e *ConsulEngine) put(path string, send interface{}, recv interface{}) error {
-	return e.do("PUT", path, send, recv)
+func (e *ConsulEngine) put(url string, send interface{}, recv interface{}) error {
+	return e.do("PUT", url, send, recv)
 }
 
-func (e *ConsulEngine) delete(path string) error {
-	return e.do("DELETE", path, nil, nil)
+func (e *ConsulEngine) delete(url string) error {
+	return e.do("DELETE", url, nil, nil)
 }
 
-func (e *ConsulEngine) do(method string, path string, send interface{}, recv interface{}) (err error) {
+func (e *ConsulEngine) do(method string, url string, send interface{}, recv interface{}) (err error) {
 	var req *http.Request
 	var res *http.Response
 	var b []byte
@@ -622,7 +622,9 @@ func (e *ConsulEngine) do(method string, path string, send interface{}, recv int
 		}
 	}
 
-	if req, err = http.NewRequest(method, e.address+path, bytes.NewReader(b)); err != nil {
+	url = e.address + url
+
+	if req, err = http.NewRequest(method, url, bytes.NewReader(b)); err != nil {
 		return
 	}
 
@@ -635,7 +637,7 @@ func (e *ConsulEngine) do(method string, path string, send interface{}, recv int
 		io.Copy(ioutil.Discard, res.Body)
 		err = consulError{
 			method: method,
-			path:   path,
+			url:    url,
 			status: res.StatusCode,
 			reason: res.Status,
 		}
@@ -689,13 +691,13 @@ func consulErrorNotFound(err error) bool {
 // 200 in responses from the consul agent.
 type consulError struct {
 	method string
-	path   string
+	url    string
 	status int
 	reason string
 }
 
 func (e consulError) Error() string {
-	return fmt.Sprintf("%s %s: %s", e.method, e.path, e.reason)
+	return fmt.Sprintf("%s %s: %s", e.method, e.url, e.reason)
 }
 
 // This structure is used for internal representation of the nodes registered

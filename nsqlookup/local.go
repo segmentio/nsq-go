@@ -1,6 +1,7 @@
 package nsqlookup
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -77,7 +78,7 @@ func (e *LocalEngine) Close() error {
 	return nil
 }
 
-func (e *LocalEngine) RegisterNode(node NodeInfo) error {
+func (e *LocalEngine) RegisterNode(ctx context.Context, node NodeInfo) error {
 	now := time.Now()
 	exp := now.Add(e.nodeTimeout)
 	key := httpBroadcastAddress(node)
@@ -96,7 +97,7 @@ func (e *LocalEngine) RegisterNode(node NodeInfo) error {
 	return nil
 }
 
-func (e *LocalEngine) UnregisterNode(node NodeInfo) error {
+func (e *LocalEngine) UnregisterNode(ctx context.Context, node NodeInfo) error {
 	key := httpBroadcastAddress(node)
 	e.mutex.Lock()
 	delete(e.nodes, key)
@@ -104,12 +105,12 @@ func (e *LocalEngine) UnregisterNode(node NodeInfo) error {
 	return nil
 }
 
-func (e *LocalEngine) PingNode(node NodeInfo) error {
+func (e *LocalEngine) PingNode(ctx context.Context, node NodeInfo) error {
 	_, err := e.get(node)
 	return err
 }
 
-func (e *LocalEngine) TombstoneTopic(node NodeInfo, topic string) error {
+func (e *LocalEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.tombstoneTopic(topic, time.Now().Add(e.tombTimeout))
@@ -117,7 +118,7 @@ func (e *LocalEngine) TombstoneTopic(node NodeInfo, topic string) error {
 	return err
 }
 
-func (e *LocalEngine) RegisterTopic(node NodeInfo, topic string) error {
+func (e *LocalEngine) RegisterTopic(ctx context.Context, node NodeInfo, topic string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.registerTopic(topic)
@@ -125,7 +126,7 @@ func (e *LocalEngine) RegisterTopic(node NodeInfo, topic string) error {
 	return err
 }
 
-func (e *LocalEngine) UnregisterTopic(node NodeInfo, topic string) error {
+func (e *LocalEngine) UnregisterTopic(ctx context.Context, node NodeInfo, topic string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.unregisterTopic(topic)
@@ -133,7 +134,7 @@ func (e *LocalEngine) UnregisterTopic(node NodeInfo, topic string) error {
 	return err
 }
 
-func (e *LocalEngine) RegisterChannel(node NodeInfo, topic string, channel string) error {
+func (e *LocalEngine) RegisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.registerChannel(topic, channel)
@@ -141,7 +142,7 @@ func (e *LocalEngine) RegisterChannel(node NodeInfo, topic string, channel strin
 	return err
 }
 
-func (e *LocalEngine) UnregisterChannel(node NodeInfo, topic string, channel string) error {
+func (e *LocalEngine) UnregisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.unregisterChannel(topic, channel)
@@ -149,7 +150,7 @@ func (e *LocalEngine) UnregisterChannel(node NodeInfo, topic string, channel str
 	return err
 }
 
-func (e *LocalEngine) LookupNodes() (nodes []NodeInfo, err error) {
+func (e *LocalEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo, err error) {
 	e.mutex.RLock()
 
 	for _, node := range e.nodes {
@@ -160,7 +161,7 @@ func (e *LocalEngine) LookupNodes() (nodes []NodeInfo, err error) {
 	return
 }
 
-func (e *LocalEngine) LookupProducers(topic string) (producers []NodeInfo, err error) {
+func (e *LocalEngine) LookupProducers(ctx context.Context, topic string) (producers []NodeInfo, err error) {
 	e.mutex.RLock()
 
 	for _, node := range e.nodes {
@@ -173,7 +174,7 @@ func (e *LocalEngine) LookupProducers(topic string) (producers []NodeInfo, err e
 	return
 }
 
-func (e *LocalEngine) LookupTopics() (topics []string, err error) {
+func (e *LocalEngine) LookupTopics(ctx context.Context) (topics []string, err error) {
 	set := make(map[string]bool)
 	e.mutex.RLock()
 
@@ -191,7 +192,7 @@ func (e *LocalEngine) LookupTopics() (topics []string, err error) {
 	return
 }
 
-func (e *LocalEngine) LookupChannels(topic string) (channels []string, err error) {
+func (e *LocalEngine) LookupChannels(ctx context.Context, topic string) (channels []string, err error) {
 	set := make(map[string]bool)
 	e.mutex.RLock()
 
@@ -209,13 +210,13 @@ func (e *LocalEngine) LookupChannels(topic string) (channels []string, err error
 	return
 }
 
-func (e *LocalEngine) LookupInfo() (info EngineInfo, err error) {
+func (e *LocalEngine) LookupInfo(ctx context.Context) (info EngineInfo, err error) {
 	info.Type = "local"
 	info.Version = "0.3.8"
 	return
 }
 
-func (e *LocalEngine) CheckHealth() (err error) {
+func (e *LocalEngine) CheckHealth(ctx context.Context) (err error) {
 	return
 }
 

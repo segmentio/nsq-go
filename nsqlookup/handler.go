@@ -27,7 +27,11 @@ const (
 
 	// DefaultReadTimeout is the maximum duration used by default for write
 	// operations.
-	DefaultWriteTimeout = 10 * time.Second
+	DefaultWriteTimeout = 1 * time.Second
+
+	// DefaultEngineTimeout is the maximum duration used by default for engine
+	// operations.
+	DefaultEngineTimeout = 1 * time.Second
 )
 
 // The APIHandler satisfies the http.Handler interface and provides the
@@ -36,9 +40,20 @@ type APIHandler struct {
 	// Engine must not be nil and has to be set to the engine that will be used
 	// by the handler to respond to http requests.
 	Engine Engine
+
+	// EngineTimeout should be set to the maximum duration allowed for engine
+	// operations.
+	EngineTimeout time.Duration
 }
 
 func (h APIHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	if h.EngineTimeout == 0 {
+		h.EngineTimeout = DefaultEngineTimeout
+	}
+
+	ctx, _ := context.WithTimeout(req.Context(), h.EngineTimeout)
+	req = req.WithContext(ctx)
+
 	switch req.URL.Path {
 	case "/lookup":
 		h.serveLookup(res, req)
@@ -86,7 +101,7 @@ func (h APIHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	nodes, err := h.Engine.LookupProducers(topic)
+	nodes, err := h.Engine.LookupProducers(req.Context(), topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -103,7 +118,7 @@ func (h APIHandler) serveTopics(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	topics, err := h.Engine.LookupTopics()
+	topics, err := h.Engine.LookupTopics(req.Context())
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -128,7 +143,7 @@ func (h APIHandler) serveChannels(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	channels, err := h.Engine.LookupChannels(topic)
+	channels, err := h.Engine.LookupChannels(req.Context(), topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -145,7 +160,7 @@ func (h APIHandler) serveNodes(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	nodes, err := h.Engine.LookupNodes()
+	nodes, err := h.Engine.LookupNodes(req.Context())
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -162,7 +177,7 @@ func (h APIHandler) servePing(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := h.Engine.CheckHealth(); err != nil {
+	if err := h.Engine.CheckHealth(req.Context()); err != nil {
 		h.sendInternalServerError(res, err)
 		return
 	}
@@ -176,7 +191,7 @@ func (h APIHandler) serveInfo(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	info, err := h.Engine.LookupInfo()
+	info, err := h.Engine.LookupInfo(req.Context())
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -199,13 +214,13 @@ func (h APIHandler) serveDeleteTopic(res http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	info, err := h.Engine.LookupInfo()
+	info, err := h.Engine.LookupInfo(req.Context())
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
 	}
 
-	nodes, err := h.Engine.LookupProducers(topic)
+	nodes, err := h.Engine.LookupProducers(req.Context(), topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -256,13 +271,13 @@ func (h APIHandler) serveDeleteChannel(res http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	info, err := h.Engine.LookupInfo()
+	info, err := h.Engine.LookupInfo(req.Context())
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
 	}
 
-	nodes, err := h.Engine.LookupProducers(topic)
+	nodes, err := h.Engine.LookupProducers(req.Context(), topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -325,7 +340,7 @@ func (h APIHandler) serveTombstoneTopicProducer(res http.ResponseWriter, req *ht
 		return
 	}
 
-	if err := h.Engine.TombstoneTopic(NodeInfo{
+	if err := h.Engine.TombstoneTopic(req.Context(), NodeInfo{
 		BroadcastAddress: host,
 		HttpPort:         intport,
 	}, topic); err != nil {
@@ -392,26 +407,45 @@ type NodeHandler struct {
 	// WriteTimeout is the maximum amount of time the handler will take to send
 	// responses to its connections.
 	WriteTimeout time.Duration
+
+	// EngineTimeout is the maximum amount of time the handler gives to
+	// operations done on the engine.
+	EngineTimeout time.Duration
 }
 
 // ServeConn takes ownership of the conn object and starts service the commands
 // that the client sends to the discovery handler.
-func (h NodeHandler) ServeConn(conn net.Conn, ctx context.Context) {
+func (h NodeHandler) ServeConn(ctx context.Context, conn net.Conn) {
 	const bufSize = 2048
-
-	go func(conn net.Conn, ctx context.Context) {
-		<-ctx.Done()
-		conn.Close()
-	}(conn, ctx)
 
 	var node NodeInfo
 	var r = bufio.NewReaderSize(conn, bufSize)
 	var w = bufio.NewWriterSize(conn, bufSize)
 
-	defer conn.Close()
+	if h.ReadTimeout == 0 {
+		h.ReadTimeout = DefaultReadTimeout
+	}
+
+	if h.WriteTimeout == 0 {
+		h.WriteTimeout = DefaultWriteTimeout
+	}
+
+	if h.EngineTimeout == 0 {
+		h.EngineTimeout = DefaultEngineTimeout
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	engineContext := func(ctx context.Context) context.Context {
+		ctx, _ = context.WithTimeout(ctx, h.EngineTimeout)
+		return ctx
+	}
+
 	defer func() {
 		if node != (NodeInfo{}) {
-			h.Engine.UnregisterNode(node)
+			h.Engine.UnregisterNode(engineContext(ctx), node)
 		}
 	}()
 
@@ -430,69 +464,70 @@ func (h NodeHandler) ServeConn(conn net.Conn, ctx context.Context) {
 	}
 
 	if len(h.Info.Version) == 0 {
-		info, _ := h.Engine.LookupInfo()
+		info, _ := h.Engine.LookupInfo(engineContext(ctx))
 		h.Info.Version = info.Version
 	}
 
-	if h.ReadTimeout == 0 {
-		h.ReadTimeout = DefaultReadTimeout
-	}
+	var cmdChan = make(chan Command)
+	var resChan = make(chan Response)
+	var errChan = make(chan error, 2)
+	var doneChan = ctx.Done()
 
-	if h.WriteTimeout == 0 {
-		h.WriteTimeout = DefaultWriteTimeout
-	}
+	defer close(resChan)
+
+	go h.readLoop(ctx, conn, r, cmdChan, errChan)
+	go h.writeLoop(ctx, conn, w, resChan, errChan)
 
 	for {
 		var cmd Command
 		var res Response
 		var err error
 
-		if cmd, err = h.readCommand(conn, r); err == nil {
-			switch c := cmd.(type) {
-			case Ping:
-				res, err = h.ping(node)
+		select {
+		case <-doneChan:
+			return
+		case <-errChan:
+			return
+		case cmd = <-cmdChan:
+		}
 
-			case Identify:
-				node, res, err = h.identify(node, c.Info)
+		switch c := cmd.(type) {
+		case Ping:
+			res, err = h.ping(engineContext(ctx), node)
 
-			case Register:
-				res, err = h.register(node, c.Topic, c.Channel)
+		case Identify:
+			node, res, err = h.identify(engineContext(ctx), node, c.Info)
 
-			case Unregister:
-				res, err = h.unregister(node, c.Topic, c.Channel)
+		case Register:
+			res, err = h.register(engineContext(ctx), node, c.Topic, c.Channel)
 
-			default:
-				res = Error{Code: ErrInvalid, Reason: "unknown command"}
-			}
+		case Unregister:
+			node, res, err = h.unregister(engineContext(ctx), node, c.Topic, c.Channel)
+
+		default:
+			res = Error{Code: ErrInvalid, Reason: "unknown command"}
 		}
 
 		if err != nil {
 			switch e := err.(type) {
 			case Error:
 				res = e
-
-			case net.Error:
-				if e.Timeout() {
-					return // no ping received for longer than the ping timeout
-				}
-				if e.Temporary() {
-					time.Sleep(100 * time.Millisecond)
-					continue // try again after waiting for a little while
-				}
-				return
-
 			default:
 				res = Error{Code: ErrInvalid, Reason: err.Error()}
 			}
 		}
 
-		if err = h.writeResponse(conn, w, res); err != nil {
+		select {
+		case <-doneChan:
 			return
+		case <-errChan:
+			return
+		case resChan <- res:
 		}
 	}
 }
 
-func (h NodeHandler) identify(node NodeInfo, info NodeInfo) (id NodeInfo, res RawResponse, err error) {
+func (h NodeHandler) identify(ctx context.Context, node NodeInfo, info NodeInfo) (id NodeInfo, res RawResponse, err error) {
 	if node != (NodeInfo{}) {
 		id, err = node, errCannotIdentifyAgain
 		return
@@ -502,14 +537,14 @@ func (h NodeHandler) identify(node NodeInfo, info NodeInfo) (id NodeInfo, res Ra
 	return
 }
 
-func (h NodeHandler) ping(node NodeInfo) (res OK, err error) {
+func (h NodeHandler) ping(ctx context.Context, node NodeInfo) (res OK, err error) {
 	if node != (NodeInfo{}) { // ping may arrive before identify
-		err = h.Engine.PingNode(node)
+		err = h.Engine.PingNode(ctx, node)
 	}
 	return
 }
 
-func (h NodeHandler) register(node NodeInfo, topic string, channel string) (res OK, err error) {
+func (h NodeHandler) register(ctx context.Context, node NodeInfo, topic string, channel string) (res OK, err error) {
 	if node == (NodeInfo{}) {
 		err = errClientMustIdentify
 		return
@@ -517,19 +552,19 @@ func (h NodeHandler) register(node NodeInfo, topic string, channel string) (res 
 
 	switch {
 	case len(channel) != 0:
-		err = h.Engine.RegisterChannel(node, topic, channel)
+		err = h.Engine.RegisterChannel(ctx, node, topic, channel)
 
 	case len(topic) != 0:
-		err = h.Engine.RegisterTopic(node, topic)
+		err = h.Engine.RegisterTopic(ctx, node, topic)
 
 	default:
-		err = h.Engine.RegisterNode(node)
+		err = h.Engine.RegisterNode(ctx, node)
 	}
 
 	return
 }
 
-func (h NodeHandler) unregister(node NodeInfo, topic string, channel string) (res OK, err error) {
+func (h NodeHandler) unregister(ctx context.Context, node NodeInfo, topic string, channel string) (id NodeInfo, res OK, err error) {
 	if node == (NodeInfo{}) {
 		err = errClientMustIdentify
 		return
@@ -537,16 +572,42 @@ func (h NodeHandler) unregister(node NodeInfo, topic string, channel string) (re
 
 	switch {
 	case len(channel) != 0:
-		err = h.Engine.UnregisterChannel(node, topic, channel)
+		err = h.Engine.UnregisterChannel(ctx, node, topic, channel)
 
 	case len(topic) != 0:
-		err = h.Engine.UnregisterTopic(node, topic)
+		err = h.Engine.UnregisterTopic(ctx, node, topic)
 
 	default:
-		err = h.Engine.UnregisterNode(node)
+		err = h.Engine.UnregisterNode(ctx, node)
+	}
+
+	if err != nil {
+		id = node
 	}
 
 	return
+}
+
+func (h NodeHandler) readLoop(ctx context.Context, conn net.Conn, r *bufio.Reader, cmdChan chan<- Command, errChan chan<- error) {
+	for {
+		for attempt := 0; true; attempt++ {
+			var cmd Command
+			var err error
+
+			if cmd, err = h.readCommand(conn, r); err == nil {
+				cmdChan <- cmd
+				break
+			}
+
+			if attempt < 10 && isTemporary(err) && !isTimeout(err) {
+				sleep(ctx, backoff(attempt, 1*time.Second))
+				continue
+			}
+
+			errChan <- err
+			return
+		}
+	}
 }
 
 func (h NodeHandler) readCommand(c net.Conn, r *bufio.Reader) (cmd Command, err error) {
@@ -554,6 +615,27 @@ func (h NodeHandler) readCommand(c net.Conn, r *bufio.Reader) (cmd Command, err 
 		cmd, err = ReadCommand(r)
 	}
 	return
+}
+
+func (h NodeHandler) writeLoop(ctx context.Context, conn net.Conn, w *bufio.Writer, resChan <-chan Response, errChan chan<- error) {
+	for res := range resChan {
+		for attempt := 0; true; attempt++ {
+			err := h.writeResponse(conn, w, res)
+
+			if err == nil {
+				break
+			}
+
+			if attempt < 10 && isTemporary(err) && !isTimeout(err) {
+				sleep(ctx, backoff(attempt, 1*time.Second))
+				attempt++
+				continue
+			}
+
+			errChan <- err
+			return
+		}
+	}
 }
 
 func (h NodeHandler) writeResponse(c net.Conn, w *bufio.Writer, r Response) (err error) {

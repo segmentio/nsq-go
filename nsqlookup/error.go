@@ -3,8 +3,10 @@ package nsqlookup
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type Error struct {
@@ -91,4 +93,21 @@ func appendError(err error, e error) error {
 		return e
 	}
 	return errors.New(err.Error() + "; " + e.Error())
+}
+
+func backoff(attempt int, max time.Duration) time.Duration {
+	d := time.Duration(attempt*attempt) * 10 * time.Millisecond
+	if d > max {
+		d = max
+	}
+	return d
+}
+
+func sleep(ctx context.Context, d time.Duration) {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+	}
 }

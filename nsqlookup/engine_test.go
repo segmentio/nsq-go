@@ -1,6 +1,7 @@
 package nsqlookup
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -18,7 +19,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func testEngine(t *testing.T, do func(*testing.T, Engine)) {
+func testEngine(t *testing.T, do func(*testing.T, Engine, context.Context)) {
 	tests := []struct {
 		Type string
 		New  func(string) Engine
@@ -51,25 +52,28 @@ func testEngine(t *testing.T, do func(*testing.T, Engine)) {
 			e := test.New(fmt.Sprintf("nsqlookup-test-%08x", rand.Int()%0xFFFFFFFF))
 			defer e.Close()
 
-			if info, err := e.LookupInfo(); err != nil {
+			c, cancel := context.WithDeadline(context.Background(), time.Now().Add(1*time.Second))
+			defer cancel()
+
+			if info, err := e.LookupInfo(c); err != nil {
 				t.Error(err)
 			} else if info.Type != test.Type {
 				t.Error("bad engine type:", info.Type)
 			}
 
-			do(t, e)
+			do(t, e, c)
 		})
 	}
 }
 
 func TestEngineClose(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
 		checkNilError(t, e.Close())
 	})
 }
 
 func TestEngineRegisterNode(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
 		nodes1 := []NodeInfo{
 			makeNodeInfo(),
 			makeNodeInfo(),
@@ -78,12 +82,12 @@ func TestEngineRegisterNode(t *testing.T) {
 
 		for _, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
-				checkNilError(t, e.RegisterNode(node))
+				checkNilError(t, e.RegisterNode(node, c))
 			})
 		}
 
 		t.Run("lookup-nodes", func(t *testing.T) {
-			nodes2, err := e.LookupNodes()
+			nodes2, err := e.LookupNodes(c)
 			checkNilError(t, err)
 			checkEqualNodes(t, nodes1, nodes2)
 		})
@@ -91,7 +95,7 @@ func TestEngineRegisterNode(t *testing.T) {
 }
 
 func TestEngineUnregisterNode(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
 		nodes1 := []NodeInfo{
 			makeNodeInfo(),
 			makeNodeInfo(),
@@ -99,31 +103,31 @@ func TestEngineUnregisterNode(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			checkNilError(t, e.RegisterNode(node))
+			checkNilError(t, e.RegisterNode(node, c))
 		}
 
 		for _, channel := range [...]string{"1", "2", "3"} {
-			checkNilError(t, e.RegisterChannel(nodes1[0], "A", channel))
+			checkNilError(t, e.RegisterChannel(nodes1[0], "A", channel, c))
 		}
 
 		t.Run("unregister", func(t *testing.T) {
-			checkNilError(t, e.UnregisterNode(nodes1[0]))
+			checkNilError(t, e.UnregisterNode(nodes1[0], c))
 		})
 
 		t.Run("lookup-nodes", func(t *testing.T) {
-			nodes2, err := e.LookupNodes()
+			nodes2, err := e.LookupNodes(c)
 			checkNilError(t, err)
 			checkEqualNodes(t, nodes1[1:], nodes2)
 		})
 
 		t.Run("lookup-topics", func(t *testing.T) {
-			topics, err := e.LookupTopics()
+			topics, err := e.LookupTopics(c)
 			checkNilError(t, err)
 			checkEqualTopics(t, nil, topics)
 		})
 
 		t.Run("lookup-channels", func(t *testing.T) {
-			channels, err := e.LookupChannels("A")
+			channels, err := e.LookupChannels("A", c)
 			checkNilError(t, err)
 			checkEqualChannels(t, nil, channels)
 		})
@@ -131,7 +135,7 @@ func TestEngineUnregisterNode(t *testing.T) {
 }
 
 func TestEnginePingNode(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
 		nodes1 := []NodeInfo{
 			makeNodeInfo(),
 			makeNodeInfo(),
@@ -139,19 +143,19 @@ func TestEnginePingNode(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			checkNilError(t, e.RegisterNode(node))
+			checkNilError(t, e.RegisterNode(node, c))
 		}
 
 		for _, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
-				checkNilError(t, e.PingNode(node))
+				checkNilError(t, e.PingNode(node, c))
 			})
 		}
 	})
 }
 
 func TestEngineTombstoneTopic(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
 		nodes1 := []NodeInfo{
 			makeNodeInfo(),
 			makeNodeInfo(),
@@ -165,19 +169,19 @@ func TestEngineTombstoneTopic(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			checkNilError(t, e.RegisterNode(node))
+			checkNilError(t, e.RegisterNode(node, c))
 		}
 
 		for i, node := range nodes1 {
 			for _, topic := range topics1[i] {
-				checkNilError(t, e.RegisterTopic(node, topic))
+				checkNilError(t, e.RegisterTopic(node, topic, c))
 			}
 		}
 
 		t.Run("tombstone", func(t *testing.T) {
 			for _, node := range nodes1 {
 				t.Run(node.Hostname, func(t *testing.T) {
-					checkNilError(t, e.TombstoneTopic(node, "A"))
+					checkNilError(t, e.TombstoneTopic(node, "A", c))
 				})
 			}
 		})
@@ -191,14 +195,14 @@ func TestEngineTombstoneTopic(t *testing.T) {
 			{"C", []NodeInfo{nodes1[1]}},
 		} {
 			t.Run(test.topic, func(t *testing.T) {
-				nodes, err := e.LookupProducers(test.topic)
+				nodes, err := e.LookupProducers(test.topic, c)
 				checkNilError(t, err)
 				checkEqualNodes(t, test.nodes, nodes)
 			})
 		}
 
 		t.Run("lookup-topics", func(t *testing.T) {
-			topics2, err := e.LookupTopics()
+			topics2, err := e.LookupTopics(c)
 			checkNilError(t, err)
 			checkEqualTopics(t, []string{"A", "B", "C"}, topics2)
 		})
@@ -215,14 +219,14 @@ func TestEngineTombstoneTopic(t *testing.T) {
 			{"C", []NodeInfo{nodes1[1]}},
 		} {
 			t.Run(test.topic, func(t *testing.T) {
-				nodes, err := e.LookupProducers(test.topic)
+				nodes, err := e.LookupProducers(test.topic, c)
 				checkNilError(t, err)
 				checkEqualNodes(t, test.nodes, nodes)
 			})
 		}
 
 		t.Run("lookup-topics", func(t *testing.T) {
-			topics2, err := e.LookupTopics()
+			topics2, err := e.LookupTopics(c)
 			checkNilError(t, err)
 			checkEqualTopics(t, []string{"A", "B", "C"}, topics2)
 		})
@@ -230,7 +234,7 @@ func TestEngineTombstoneTopic(t *testing.T) {
 }
 
 func TestEngineRegisterTopic(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
 		nodes1 := []NodeInfo{
 			makeNodeInfo(),
 			makeNodeInfo(),
@@ -244,14 +248,14 @@ func TestEngineRegisterTopic(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			checkNilError(t, e.RegisterNode(node))
+			checkNilError(t, e.RegisterNode(node, c))
 		}
 
 		for i, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
 				for _, topic := range topics1[i] {
 					t.Run(topic, func(t *testing.T) {
-						checkNilError(t, e.RegisterTopic(node, topic))
+						checkNilError(t, e.RegisterTopic(node, topic, c))
 					})
 				}
 			})
@@ -267,14 +271,14 @@ func TestEngineRegisterTopic(t *testing.T) {
 			{"D", nil},
 		} {
 			t.Run(test.topic, func(t *testing.T) {
-				nodes, err := e.LookupProducers(test.topic)
+				nodes, err := e.LookupProducers(test.topic, c)
 				checkNilError(t, err)
 				checkEqualNodes(t, test.nodes, nodes)
 			})
 		}
 
 		t.Run("lookup-topics", func(t *testing.T) {
-			topics2, err := e.LookupTopics()
+			topics2, err := e.LookupTopics(c)
 			checkNilError(t, err)
 			checkEqualTopics(t, []string{"A", "B", "C"}, topics2)
 		})
@@ -282,7 +286,7 @@ func TestEngineRegisterTopic(t *testing.T) {
 }
 
 func TestEngineUnregisterTopic(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
 		nodes1 := []NodeInfo{
 			makeNodeInfo(),
 			makeNodeInfo(),
@@ -296,18 +300,18 @@ func TestEngineUnregisterTopic(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			checkNilError(t, e.RegisterNode(node))
+			checkNilError(t, e.RegisterNode(node, c))
 		}
 
 		for i, node := range nodes1 {
 			for _, topic := range topics1[i] {
-				checkNilError(t, e.RegisterTopic(node, topic))
+				checkNilError(t, e.RegisterTopic(node, topic, c))
 			}
 		}
 
 		for _, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
-				checkNilError(t, e.UnregisterTopic(node, "A"))
+				checkNilError(t, e.UnregisterTopic(node, "A", c))
 			})
 		}
 
@@ -321,20 +325,20 @@ func TestEngineUnregisterTopic(t *testing.T) {
 			{"D", nil},
 		} {
 			t.Run(test.topic, func(t *testing.T) {
-				nodes, err := e.LookupProducers(test.topic)
+				nodes, err := e.LookupProducers(test.topic, c)
 				checkNilError(t, err)
 				checkEqualNodes(t, test.nodes, nodes)
 			})
 		}
 
 		t.Run("lookup-topics", func(t *testing.T) {
-			topics2, err := e.LookupTopics()
+			topics2, err := e.LookupTopics(c)
 			checkNilError(t, err)
 			checkEqualTopics(t, []string{"B", "C"}, topics2)
 		})
 
 		t.Run("lookup-channels", func(t *testing.T) {
-			channels, err := e.LookupChannels("A")
+			channels, err := e.LookupChannels("A", c)
 			checkNilError(t, err)
 			checkEqualChannels(t, nil, channels)
 		})
@@ -342,7 +346,7 @@ func TestEngineUnregisterTopic(t *testing.T) {
 }
 
 func TestEngineRegisterChannel(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
 		nodes1 := []NodeInfo{
 			makeNodeInfo(),
 			makeNodeInfo(),
@@ -356,21 +360,21 @@ func TestEngineRegisterChannel(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			checkNilError(t, e.RegisterNode(node))
+			checkNilError(t, e.RegisterNode(node, c))
 		}
 
 		for i, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
 				for _, channel := range channels1[i] {
 					t.Run(channel, func(t *testing.T) {
-						checkNilError(t, e.RegisterChannel(node, "A", channel))
+						checkNilError(t, e.RegisterChannel(node, "A", channel, c))
 					})
 				}
 			})
 		}
 
 		t.Run("lookup-channels", func(t *testing.T) {
-			channels2, err := e.LookupChannels("A")
+			channels2, err := e.LookupChannels("A", c)
 			checkNilError(t, err)
 			checkEqualChannels(t, []string{"1", "2", "3"}, channels2)
 		})
@@ -378,7 +382,7 @@ func TestEngineRegisterChannel(t *testing.T) {
 }
 
 func TestEngineUnregisterChannel(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
 		nodes1 := []NodeInfo{
 			makeNodeInfo(),
 			makeNodeInfo(),
@@ -392,23 +396,23 @@ func TestEngineUnregisterChannel(t *testing.T) {
 		}
 
 		for _, node := range nodes1 {
-			checkNilError(t, e.RegisterNode(node))
+			checkNilError(t, e.RegisterNode(node, c))
 		}
 
 		for i, node := range nodes1 {
 			for _, channel := range channels1[i] {
-				checkNilError(t, e.RegisterChannel(node, "A", channel))
+				checkNilError(t, e.RegisterChannel(node, "A", channel, c))
 			}
 		}
 
 		for _, node := range nodes1 {
 			t.Run(node.Hostname, func(t *testing.T) {
-				checkNilError(t, e.UnregisterChannel(node, "A", "1"))
+				checkNilError(t, e.UnregisterChannel(node, "A", "1", c))
 			})
 		}
 
 		t.Run("lookup-channels", func(t *testing.T) {
-			channels2, err := e.LookupChannels("A")
+			channels2, err := e.LookupChannels("A", c)
 			checkNilError(t, err)
 			checkEqualChannels(t, []string{"2", "3"}, channels2)
 		})
@@ -416,8 +420,8 @@ func TestEngineUnregisterChannel(t *testing.T) {
 }
 
 func TestEngineCheckHealth(t *testing.T) {
-	testEngine(t, func(t *testing.T, e Engine) {
-		checkNilError(t, e.CheckHealth())
+	testEngine(t, func(t *testing.T, e Engine, c context.Context) {
+		checkNilError(t, e.CheckHealth(c))
 	})
 }
 

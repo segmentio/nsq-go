@@ -1,6 +1,7 @@
 package nsqlookup
 
 import (
+	"context"
 	"net"
 	"sort"
 	"strconv"
@@ -40,6 +41,12 @@ type EngineInfo struct {
 
 // The Engine interface must be implemented by types that are intended to be
 // used to power nsqlookup servers.
+//
+// Each method of the engine accepts a context as last argument which may be
+// used to cancel or set a deadline on the operation.
+// This is useful for engines that work we storage services accessed over the
+// network.
+// The context may be nil.
 type Engine interface {
 	// Close should release all internal state maintained by the engine, it is
 	// called when the nsqlookup server using the engine is shutting down.
@@ -47,55 +54,55 @@ type Engine interface {
 
 	// RegisterNode is called by nsqlookup servers when a new node is attempting
 	// to register.
-	RegisterNode(node NodeInfo) error
+	RegisterNode(node NodeInfo, ctx context.Context) error
 
 	// UnregisterNode is called by nsqlookup servers when a node that had
 	// previously registered is going away.
-	UnregisterNode(node NodeInfo) error
+	UnregisterNode(node NodeInfo, ctx context.Context) error
 
 	// PingNode is called by nsqlookup servers when a registered node sends a
 	// ping command to inform that it is still alive.
-	PingNode(node NodeInfo) error
+	PingNode(node NodeInfo, ctx context.Context) error
 
 	// TombstoneTopic marks topic as tombstoned on node.
-	TombstoneTopic(node NodeInfo, topic string) error
+	TombstoneTopic(node NodeInfo, topic string, ctx context.Context) error
 
 	// RegisterTopic is called by nsqlookup servers when topic is being
 	// registered on node.
-	RegisterTopic(node NodeInfo, topic string) error
+	RegisterTopic(node NodeInfo, topic string, ctx context.Context) error
 
 	// UnregisterTopic is called by nsqlookup servers when topic is being
 	// unregistered from node.
-	UnregisterTopic(node NodeInfo, topic string) error
+	UnregisterTopic(node NodeInfo, topic string, ctx context.Context) error
 
 	// RegisterChannel is called by nsqlookup servers when channel from topic is
 	// being registered on node.
-	RegisterChannel(node NodeInfo, topic string, channel string) error
+	RegisterChannel(node NodeInfo, topic string, channel string, ctx context.Context) error
 
 	// UnregisterChannel is called by nsqlookup servers when channel from topic
 	// is being unregistered from node.
-	UnregisterChannel(node NodeInfo, topic string, channel string) error
+	UnregisterChannel(node NodeInfo, topic string, channel string, ctx context.Context) error
 
 	// LookupNodes must return a list of of all nodes registered on the engine.
-	LookupNodes() ([]NodeInfo, error)
+	LookupNodes(ctx context.Context) ([]NodeInfo, error)
 
 	// LookupProducers must return a list of all nodes for which topic has been
 	// registered on the engine and were not tombstoned.
-	LookupProducers(topic string) ([]NodeInfo, error)
+	LookupProducers(topic string, ctx context.Context) ([]NodeInfo, error)
 
 	// LookupTopics must return a list of all topics registered on the engine.
-	LookupTopics() ([]string, error)
+	LookupTopics(ctx context.Context) ([]string, error)
 
 	// LookupChannels must return a list of all channels registerd for topic on
 	// the engine.
-	LookupChannels(topic string) ([]string, error)
+	LookupChannels(topic string, ctx context.Context) ([]string, error)
 
 	// LookupInfo must return information about the engine.
-	LookupInfo() (EngineInfo, error)
+	LookupInfo(ctx context.Context) (EngineInfo, error)
 
 	// CheckHealth is called by nsqlookup servers to evaluate the health of the
 	// engine.
-	CheckHealth() error
+	CheckHealth(ctx context.Context) error
 }
 
 type byNode []NodeInfo

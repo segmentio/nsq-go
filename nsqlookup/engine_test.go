@@ -2,6 +2,7 @@ package nsqlookup
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"sync/atomic"
 	"testing"
@@ -10,17 +11,21 @@ import (
 
 const (
 	nodeTimeout = 1 * time.Minute
-	tombTimeout = 10 * time.Millisecond
+	tombTimeout = 100 * time.Millisecond
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func testEngine(t *testing.T, do func(*testing.T, Engine)) {
 	tests := []struct {
 		Type string
-		New  func() Engine
+		New  func(string) Engine
 	}{
 		{
 			Type: "local",
-			New: func() Engine {
+			New: func(namespace string) Engine {
 				return NewLocalEngine(LocalConfig{
 					NodeTimeout:      nodeTimeout,
 					TombstoneTimeout: tombTimeout,
@@ -29,8 +34,9 @@ func testEngine(t *testing.T, do func(*testing.T, Engine)) {
 		},
 		{
 			Type: "consul",
-			New: func() Engine {
+			New: func(namespace string) Engine {
 				return NewConsulEngine(ConsulConfig{
+					Namespace:        namespace,
 					NodeTimeout:      nodeTimeout,
 					TombstoneTimeout: tombTimeout,
 				})
@@ -40,9 +46,9 @@ func testEngine(t *testing.T, do func(*testing.T, Engine)) {
 
 	for _, test := range tests {
 		t.Run(test.Type, func(t *testing.T) {
-			//			t.Parallel()
+			t.Parallel()
 
-			e := test.New()
+			e := test.New(fmt.Sprintf("nsqlookup-test-%08x", rand.Int()%0xFFFFFFFF))
 			defer e.Close()
 
 			if info, err := e.LookupInfo(); err != nil {

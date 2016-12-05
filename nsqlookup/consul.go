@@ -22,7 +22,7 @@ const (
 
 	// DefaultConsulRequestTimeout is the maximum amount of time that requests
 	// to a consul agent are allowed to take.
-	DefaultConsulRequestTimeout = 1 * time.Second
+	DefaultConsulRequestTimeout = 10 * time.Second
 )
 
 // The ConsulConfig structure is used to configure consul engines.

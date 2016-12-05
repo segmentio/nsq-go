@@ -101,7 +101,7 @@ func (h APIHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	nodes, err := h.Engine.LookupProducers(topic, req.Context())
+	nodes, err := h.Engine.LookupProducers(req.Context(), topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -143,7 +143,7 @@ func (h APIHandler) serveChannels(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	channels, err := h.Engine.LookupChannels(topic, req.Context())
+	channels, err := h.Engine.LookupChannels(req.Context(), topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -220,7 +220,7 @@ func (h APIHandler) serveDeleteTopic(res http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	nodes, err := h.Engine.LookupProducers(topic, req.Context())
+	nodes, err := h.Engine.LookupProducers(req.Context(), topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -277,7 +277,7 @@ func (h APIHandler) serveDeleteChannel(res http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	nodes, err := h.Engine.LookupProducers(topic, req.Context())
+	nodes, err := h.Engine.LookupProducers(req.Context(), topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
@@ -340,10 +340,10 @@ func (h APIHandler) serveTombstoneTopicProducer(res http.ResponseWriter, req *ht
 		return
 	}
 
-	if err := h.Engine.TombstoneTopic(NodeInfo{
+	if err := h.Engine.TombstoneTopic(req.Context(), NodeInfo{
 		BroadcastAddress: host,
 		HttpPort:         intport,
-	}, topic, req.Context()); err != nil {
+	}, topic); err != nil {
 		h.sendInternalServerError(res, err)
 		return
 	}
@@ -445,7 +445,7 @@ func (h NodeHandler) ServeConn(conn net.Conn, ctx context.Context) {
 
 	defer func() {
 		if node != (NodeInfo{}) {
-			h.Engine.UnregisterNode(node, engineContext(ctx))
+			h.Engine.UnregisterNode(engineContext(ctx), node)
 		}
 	}()
 
@@ -539,7 +539,7 @@ func (h NodeHandler) identify(node NodeInfo, info NodeInfo, ctx context.Context)
 
 func (h NodeHandler) ping(node NodeInfo, ctx context.Context) (res OK, err error) {
 	if node != (NodeInfo{}) { // ping may arrive before identify
-		err = h.Engine.PingNode(node, ctx)
+		err = h.Engine.PingNode(ctx, node)
 	}
 	return
 }
@@ -552,13 +552,13 @@ func (h NodeHandler) register(node NodeInfo, topic string, channel string, ctx c
 
 	switch {
 	case len(channel) != 0:
-		err = h.Engine.RegisterChannel(node, topic, channel, ctx)
+		err = h.Engine.RegisterChannel(ctx, node, topic, channel)
 
 	case len(topic) != 0:
-		err = h.Engine.RegisterTopic(node, topic, ctx)
+		err = h.Engine.RegisterTopic(ctx, node, topic)
 
 	default:
-		err = h.Engine.RegisterNode(node, ctx)
+		err = h.Engine.RegisterNode(ctx, node)
 	}
 
 	return
@@ -572,13 +572,13 @@ func (h NodeHandler) unregister(node NodeInfo, topic string, channel string, ctx
 
 	switch {
 	case len(channel) != 0:
-		err = h.Engine.UnregisterChannel(node, topic, channel, ctx)
+		err = h.Engine.UnregisterChannel(ctx, node, topic, channel)
 
 	case len(topic) != 0:
-		err = h.Engine.UnregisterTopic(node, topic, ctx)
+		err = h.Engine.UnregisterTopic(ctx, node, topic)
 
 	default:
-		err = h.Engine.UnregisterNode(node, ctx)
+		err = h.Engine.UnregisterNode(ctx, node)
 	}
 
 	if err != nil {

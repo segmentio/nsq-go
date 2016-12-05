@@ -85,9 +85,7 @@ func NewConsulEngine(config ConsulConfig) *ConsulEngine {
 	}
 
 	return &ConsulEngine{
-		client: http.Client{
-			Transport: config.Transport,
-		},
+		client:      http.Client{Transport: config.Transport},
 		address:     config.Address,
 		namespace:   config.Namespace,
 		nodeTimeout: config.NodeTimeout,
@@ -112,23 +110,26 @@ func (e *ConsulEngine) Close() (err error) {
 		e.nodes = nil
 		e.mutex.Unlock()
 
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(DefaultEngineTimeout))
+		defer cancel()
+
 		join := &sync.WaitGroup{}
 
 		for _, sid := range list {
 			join.Add(1)
 			go func(sid string) {
 				defer join.Done()
-				e.destroySession(sid, nil)
+				e.destroySession(ctx, sid)
 			}(sid)
 		}
 
-		e.unsetKey(e.key(""), nil) // remove the namespace
+		e.unsetKey(ctx, e.key("")) // remove the namespace
 		join.Wait()
 	})
 	return
 }
 
-func (e *ConsulEngine) RegisterNode(node NodeInfo, ctx context.Context) (err error) {
+func (e *ConsulEngine) RegisterNode(ctx context.Context, node NodeInfo) (err error) {
 	var sid string
 	var now = time.Now()
 
@@ -158,13 +159,13 @@ func (e *ConsulEngine) RegisterNode(node NodeInfo, ctx context.Context) (err err
 		e.nodes[k] = n
 		e.mutex.Unlock()
 
-		if sid, err = e.createSession(e.nodeTimeout, ctx); err != nil {
+		if sid, err = e.createSession(ctx, e.nodeTimeout); err != nil {
 			n.err = err
 		} else {
 			n.sid = sid
 		}
 
-		if err = e.registerNode(node, sid, ctx); err != nil {
+		if err = e.registerNode(ctx, node, sid); err != nil {
 			n.sid = ""
 			n.err = err
 		}
@@ -181,7 +182,7 @@ func (e *ConsulEngine) RegisterNode(node NodeInfo, ctx context.Context) (err err
 	return
 }
 
-func (e *ConsulEngine) UnregisterNode(node NodeInfo, ctx context.Context) (err error) {
+func (e *ConsulEngine) UnregisterNode(ctx context.Context, node NodeInfo) (err error) {
 	var sid string
 	var now = time.Now()
 
@@ -193,13 +194,13 @@ func (e *ConsulEngine) UnregisterNode(node NodeInfo, ctx context.Context) (err e
 		e.mutex.Lock()
 		delete(e.nodes, sid)
 		e.mutex.Unlock()
-		err = e.destroySession(sid, ctx)
+		err = e.destroySession(ctx, sid)
 	}
 
 	return
 }
 
-func (e *ConsulEngine) PingNode(node NodeInfo, ctx context.Context) (err error) {
+func (e *ConsulEngine) PingNode(ctx context.Context, node NodeInfo) (err error) {
 	var sid string
 	var now = time.Now()
 
@@ -210,13 +211,13 @@ func (e *ConsulEngine) PingNode(node NodeInfo, ctx context.Context) (err error) 
 	if len(sid) == 0 {
 		err = errMissingNode
 	} else {
-		err = e.renewSession(sid, ctx)
+		err = e.renewSession(ctx, sid)
 	}
 
 	return
 }
 
-func (e *ConsulEngine) TombstoneTopic(node NodeInfo, topic string, ctx context.Context) (err error) {
+func (e *ConsulEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic string) (err error) {
 	var sid string
 	var now = time.Now()
 	var exp = now.Add(e.tombTimeout)
@@ -231,15 +232,15 @@ func (e *ConsulEngine) TombstoneTopic(node NodeInfo, topic string, ctx context.C
 	}
 
 	// Create a new session to manage the tombstone key's timeout independently.
-	if sid, err = e.createSession(e.tombTimeout, ctx); err != nil {
+	if sid, err = e.createSession(ctx, e.tombTimeout); err != nil {
 		return
 	}
 
-	err = e.tombstoneTopic(node, topic, sid, exp.UTC(), ctx)
+	err = e.tombstoneTopic(ctx, node, topic, sid, exp.UTC())
 	return
 }
 
-func (e *ConsulEngine) RegisterTopic(node NodeInfo, topic string, ctx context.Context) (err error) {
+func (e *ConsulEngine) RegisterTopic(ctx context.Context, node NodeInfo, topic string) (err error) {
 	var sid string
 	var now = time.Now()
 
@@ -250,13 +251,13 @@ func (e *ConsulEngine) RegisterTopic(node NodeInfo, topic string, ctx context.Co
 	if len(sid) == 0 {
 		err = errMissingNode
 	} else {
-		err = e.registerTopic(node, topic, sid, ctx)
+		err = e.registerTopic(ctx, node, topic, sid)
 	}
 
 	return
 }
 
-func (e *ConsulEngine) UnregisterTopic(node NodeInfo, topic string, ctx context.Context) (err error) {
+func (e *ConsulEngine) UnregisterTopic(ctx context.Context, node NodeInfo, topic string) (err error) {
 	var sid string
 	var now = time.Now()
 
@@ -267,7 +268,7 @@ func (e *ConsulEngine) UnregisterTopic(node NodeInfo, topic string, ctx context.
 	if len(sid) == 0 {
 		err = errMissingNode
 	} else {
-		err = e.unregisterTopic(node, topic, ctx)
+		err = e.unregisterTopic(ctx, node, topic)
 	}
 
 	if consulErrorNotFound(err) {
@@ -277,7 +278,7 @@ func (e *ConsulEngine) UnregisterTopic(node NodeInfo, topic string, ctx context.
 	return
 }
 
-func (e *ConsulEngine) RegisterChannel(node NodeInfo, topic string, channel string, ctx context.Context) (err error) {
+func (e *ConsulEngine) RegisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) (err error) {
 	var sid string
 	var now = time.Now()
 
@@ -290,15 +291,15 @@ func (e *ConsulEngine) RegisterChannel(node NodeInfo, topic string, channel stri
 		return
 	}
 
-	if err = e.registerTopic(node, topic, sid, ctx); err != nil {
+	if err = e.registerTopic(ctx, node, topic, sid); err != nil {
 		return
 	}
 
-	err = e.registerChannel(node, topic, channel, sid, ctx)
+	err = e.registerChannel(ctx, node, topic, channel, sid)
 	return
 }
 
-func (e *ConsulEngine) UnregisterChannel(node NodeInfo, topic string, channel string, ctx context.Context) (err error) {
+func (e *ConsulEngine) UnregisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) (err error) {
 	var sid string
 	var now = time.Now()
 
@@ -309,7 +310,7 @@ func (e *ConsulEngine) UnregisterChannel(node NodeInfo, topic string, channel st
 	if len(sid) == 0 {
 		err = errMissingNode
 	} else {
-		err = e.unregisterChannel(node, topic, channel, ctx)
+		err = e.unregisterChannel(ctx, node, topic, channel)
 	}
 
 	if consulErrorNotFound(err) {
@@ -320,20 +321,20 @@ func (e *ConsulEngine) UnregisterChannel(node NodeInfo, topic string, channel st
 }
 
 func (e *ConsulEngine) LookupNodes(ctx context.Context) ([]NodeInfo, error) {
-	return e.getNodes("nodes", time.Now(), ctx)
+	return e.getNodes(ctx, "nodes", time.Now())
 }
 
-func (e *ConsulEngine) LookupProducers(topic string, ctx context.Context) (producers []NodeInfo, err error) {
+func (e *ConsulEngine) LookupProducers(ctx context.Context, topic string) (producers []NodeInfo, err error) {
 	now := time.Now()
 
-	resChan1 := make(chan []NodeInfo)
-	resChan2 := make(chan []NodeInfo)
+	resChan1 := make(chan []NodeInfo, 1)
+	resChan2 := make(chan []NodeInfo, 1)
 
-	errChan1 := make(chan error)
-	errChan2 := make(chan error)
+	errChan1 := make(chan error, 1)
+	errChan2 := make(chan error, 1)
 
 	lookup := func(key string, res chan<- []NodeInfo, err chan<- error) {
-		if n, e := e.getNodes(key, now, ctx); e != nil {
+		if n, e := e.getNodes(ctx, key, now); e != nil {
 			err <- e
 		} else {
 			res <- n
@@ -375,7 +376,7 @@ searchProducers:
 }
 
 func (e *ConsulEngine) LookupTopics(ctx context.Context) (topics []string, err error) {
-	topics, err = e.listKeys("topics", ctx)
+	topics, err = e.listKeys(ctx, "topics")
 
 	if consulErrorNotFound(err) {
 		err = nil
@@ -384,8 +385,8 @@ func (e *ConsulEngine) LookupTopics(ctx context.Context) (topics []string, err e
 	return
 }
 
-func (e *ConsulEngine) LookupChannels(topic string, ctx context.Context) (channels []string, err error) {
-	channels, err = e.listKeys(path.Join("topics", topic, "channels"), ctx)
+func (e *ConsulEngine) LookupChannels(ctx context.Context, topic string) (channels []string, err error) {
+	channels, err = e.listKeys(ctx, path.Join("topics", topic, "channels"))
 
 	if consulErrorNotFound(err) {
 		err = nil
@@ -425,7 +426,7 @@ func (e *ConsulEngine) session(node NodeInfo, now time.Time) (sid string, err er
 	return
 }
 
-func (e *ConsulEngine) createSession(ttl time.Duration, ctx context.Context) (sid string, err error) {
+func (e *ConsulEngine) createSession(ctx context.Context, ttl time.Duration) (sid string, err error) {
 	const minTTL = time.Second * 10
 	const maxTTL = time.Second * 86400
 
@@ -437,7 +438,7 @@ func (e *ConsulEngine) createSession(ttl time.Duration, ctx context.Context) (si
 		ttl = maxTTL
 	}
 
-	if err = e.put("/v1/session/create", struct {
+	if err = e.put(ctx, "/v1/session/create", struct {
 		LockDelay string
 		Name      string
 		Behavior  string
@@ -447,7 +448,7 @@ func (e *ConsulEngine) createSession(ttl time.Duration, ctx context.Context) (si
 		Name:      "nsqlookupd consul engine",
 		Behavior:  "delete",
 		TTL:       strconv.Itoa(int(ttl.Seconds())) + "s",
-	}, &session, ctx); err != nil {
+	}, &session); err != nil {
 		return
 	}
 
@@ -455,40 +456,40 @@ func (e *ConsulEngine) createSession(ttl time.Duration, ctx context.Context) (si
 	return
 }
 
-func (e *ConsulEngine) destroySession(sid string, ctx context.Context) error {
-	return e.put("/v1/session/destroy/"+sid, nil, nil, ctx)
+func (e *ConsulEngine) destroySession(ctx context.Context, sid string) error {
+	return e.put(ctx, "/v1/session/destroy/"+sid, nil, nil)
 }
 
-func (e *ConsulEngine) renewSession(sid string, ctx context.Context) error {
-	return e.put("/v1/session/renew/"+sid, nil, nil, ctx)
+func (e *ConsulEngine) renewSession(ctx context.Context, sid string) error {
+	return e.put(ctx, "/v1/session/renew/"+sid, nil, nil)
 }
 
-func (e *ConsulEngine) registerNode(node NodeInfo, sid string, ctx context.Context) error {
-	return e.setKey(consulNodeKey(node), sid, consulValue{Node: node}, ctx)
+func (e *ConsulEngine) registerNode(ctx context.Context, node NodeInfo, sid string) error {
+	return e.setKey(ctx, consulNodeKey(node), sid, consulValue{Node: node})
 }
 
-func (e *ConsulEngine) registerTopic(node NodeInfo, topic string, sid string, ctx context.Context) error {
-	return e.setKey(consulTopicKey(node, topic), sid, consulValue{Node: node}, ctx)
+func (e *ConsulEngine) registerTopic(ctx context.Context, node NodeInfo, topic string, sid string) error {
+	return e.setKey(ctx, consulTopicKey(node, topic), sid, consulValue{Node: node})
 }
 
-func (e *ConsulEngine) unregisterTopic(node NodeInfo, topic string, ctx context.Context) error {
-	return e.unsetKey(consulTopicKey(node, topic), ctx)
+func (e *ConsulEngine) unregisterTopic(ctx context.Context, node NodeInfo, topic string) error {
+	return e.unsetKey(ctx, consulTopicKey(node, topic))
 }
 
-func (e *ConsulEngine) registerChannel(node NodeInfo, topic string, channel string, sid string, ctx context.Context) error {
-	return e.setKey(consulChannelKey(node, topic, channel), sid, consulValue{Node: node}, ctx)
+func (e *ConsulEngine) registerChannel(ctx context.Context, node NodeInfo, topic string, channel string, sid string) error {
+	return e.setKey(ctx, consulChannelKey(node, topic, channel), sid, consulValue{Node: node})
 }
 
-func (e *ConsulEngine) unregisterChannel(node NodeInfo, topic string, channel string, ctx context.Context) error {
-	return e.unsetKey(consulChannelKey(node, topic, channel), ctx)
+func (e *ConsulEngine) unregisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) error {
+	return e.unsetKey(ctx, consulChannelKey(node, topic, channel))
 }
 
-func (e *ConsulEngine) tombstoneTopic(node NodeInfo, topic string, sid string, exp time.Time, ctx context.Context) error {
-	return e.setKey(consulTombstoneKey(node, topic), sid, consulValue{Node: node, Deadline: &exp}, ctx)
+func (e *ConsulEngine) tombstoneTopic(ctx context.Context, node NodeInfo, topic string, sid string, exp time.Time) error {
+	return e.setKey(ctx, consulTombstoneKey(node, topic), sid, consulValue{Node: node, Deadline: &exp})
 }
 
-func (e *ConsulEngine) listKeys(prefix string, ctx context.Context) (keys []string, err error) {
-	if err = e.get(e.key(prefix)+"?keys", &keys, ctx); err != nil {
+func (e *ConsulEngine) listKeys(ctx context.Context, prefix string) (keys []string, err error) {
+	if err = e.get(ctx, e.key(prefix)+"?keys", &keys); err != nil {
 		return
 	}
 
@@ -511,10 +512,10 @@ func (e *ConsulEngine) listKeys(prefix string, ctx context.Context) (keys []stri
 	return
 }
 
-func (e *ConsulEngine) getNodes(key string, now time.Time, ctx context.Context) (nodes []NodeInfo, err error) {
+func (e *ConsulEngine) getNodes(ctx context.Context, key string, now time.Time) (nodes []NodeInfo, err error) {
 	var values []consulValue
 
-	if values, err = e.getKey(key, ctx); err != nil {
+	if values, err = e.getKey(ctx, key); err != nil {
 		if consulErrorNotFound(err) {
 			err = nil
 		}
@@ -544,10 +545,10 @@ func (e *ConsulEngine) getNodes(key string, now time.Time, ctx context.Context) 
 	return
 }
 
-func (e *ConsulEngine) getKey(key string, ctx context.Context) (values []consulValue, err error) {
+func (e *ConsulEngine) getKey(ctx context.Context, key string) (values []consulValue, err error) {
 	var kv []struct{ Value []byte }
 
-	if err = e.get(e.key(key)+"?recurse", &kv, ctx); err != nil {
+	if err = e.get(ctx, e.key(key)+"?recurse", &kv); err != nil {
 		return
 	}
 
@@ -567,31 +568,31 @@ func (e *ConsulEngine) getKey(key string, ctx context.Context) (values []consulV
 	return
 }
 
-func (e *ConsulEngine) setKey(key string, sid string, value consulValue, ctx context.Context) (err error) {
-	return e.put(e.key(key)+"?acquire="+sid, value, nil, ctx)
+func (e *ConsulEngine) setKey(ctx context.Context, key string, sid string, value consulValue) (err error) {
+	return e.put(ctx, e.key(key)+"?acquire="+sid, value, nil)
 }
 
-func (e *ConsulEngine) unsetKey(key string, ctx context.Context) error {
-	return e.delete(e.key(key)+"?recurse", ctx)
+func (e *ConsulEngine) unsetKey(ctx context.Context, key string) error {
+	return e.delete(ctx, e.key(key)+"?recurse")
 }
 
 func (e *ConsulEngine) key(key string) string {
 	return path.Join("/v1/kv", e.namespace, key)
 }
 
-func (e *ConsulEngine) get(url string, recv interface{}, ctx context.Context) error {
-	return e.do("GET", url, nil, recv, ctx)
+func (e *ConsulEngine) get(ctx context.Context, url string, recv interface{}) error {
+	return e.do(ctx, "GET", url, nil, recv)
 }
 
-func (e *ConsulEngine) put(url string, send interface{}, recv interface{}, ctx context.Context) error {
-	return e.do("PUT", url, send, recv, ctx)
+func (e *ConsulEngine) put(ctx context.Context, url string, send interface{}, recv interface{}) error {
+	return e.do(ctx, "PUT", url, send, recv)
 }
 
-func (e *ConsulEngine) delete(url string, ctx context.Context) error {
-	return e.do("DELETE", url, nil, nil, ctx)
+func (e *ConsulEngine) delete(ctx context.Context, url string) error {
+	return e.do(ctx, "DELETE", url, nil, nil)
 }
 
-func (e *ConsulEngine) do(method string, url string, send interface{}, recv interface{}, ctx context.Context) (err error) {
+func (e *ConsulEngine) do(ctx context.Context, method string, url string, send interface{}, recv interface{}) (err error) {
 	var req *http.Request
 	var res *http.Response
 	var b []byte

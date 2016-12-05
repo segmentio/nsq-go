@@ -78,7 +78,7 @@ func (e *LocalEngine) Close() error {
 	return nil
 }
 
-func (e *LocalEngine) RegisterNode(node NodeInfo, ctx context.Context) error {
+func (e *LocalEngine) RegisterNode(ctx context.Context, node NodeInfo) error {
 	now := time.Now()
 	exp := now.Add(e.nodeTimeout)
 	key := httpBroadcastAddress(node)
@@ -97,7 +97,7 @@ func (e *LocalEngine) RegisterNode(node NodeInfo, ctx context.Context) error {
 	return nil
 }
 
-func (e *LocalEngine) UnregisterNode(node NodeInfo, ctx context.Context) error {
+func (e *LocalEngine) UnregisterNode(ctx context.Context, node NodeInfo) error {
 	key := httpBroadcastAddress(node)
 	e.mutex.Lock()
 	delete(e.nodes, key)
@@ -105,12 +105,12 @@ func (e *LocalEngine) UnregisterNode(node NodeInfo, ctx context.Context) error {
 	return nil
 }
 
-func (e *LocalEngine) PingNode(node NodeInfo, ctx context.Context) error {
+func (e *LocalEngine) PingNode(ctx context.Context, node NodeInfo) error {
 	_, err := e.get(node)
 	return err
 }
 
-func (e *LocalEngine) TombstoneTopic(node NodeInfo, topic string, ctx context.Context) error {
+func (e *LocalEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.tombstoneTopic(topic, time.Now().Add(e.tombTimeout))
@@ -118,7 +118,7 @@ func (e *LocalEngine) TombstoneTopic(node NodeInfo, topic string, ctx context.Co
 	return err
 }
 
-func (e *LocalEngine) RegisterTopic(node NodeInfo, topic string, ctx context.Context) error {
+func (e *LocalEngine) RegisterTopic(ctx context.Context, node NodeInfo, topic string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.registerTopic(topic)
@@ -126,7 +126,7 @@ func (e *LocalEngine) RegisterTopic(node NodeInfo, topic string, ctx context.Con
 	return err
 }
 
-func (e *LocalEngine) UnregisterTopic(node NodeInfo, topic string, ctx context.Context) error {
+func (e *LocalEngine) UnregisterTopic(ctx context.Context, node NodeInfo, topic string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.unregisterTopic(topic)
@@ -134,7 +134,7 @@ func (e *LocalEngine) UnregisterTopic(node NodeInfo, topic string, ctx context.C
 	return err
 }
 
-func (e *LocalEngine) RegisterChannel(node NodeInfo, topic string, channel string, ctx context.Context) error {
+func (e *LocalEngine) RegisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.registerChannel(topic, channel)
@@ -142,7 +142,7 @@ func (e *LocalEngine) RegisterChannel(node NodeInfo, topic string, channel strin
 	return err
 }
 
-func (e *LocalEngine) UnregisterChannel(node NodeInfo, topic string, channel string, ctx context.Context) error {
+func (e *LocalEngine) UnregisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) error {
 	n, err := e.get(node)
 	if n != nil {
 		n.unregisterChannel(topic, channel)
@@ -161,7 +161,7 @@ func (e *LocalEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo, err er
 	return
 }
 
-func (e *LocalEngine) LookupProducers(topic string, ctx context.Context) (producers []NodeInfo, err error) {
+func (e *LocalEngine) LookupProducers(ctx context.Context, topic string) (producers []NodeInfo, err error) {
 	e.mutex.RLock()
 
 	for _, node := range e.nodes {
@@ -192,7 +192,7 @@ func (e *LocalEngine) LookupTopics(ctx context.Context) (topics []string, err er
 	return
 }
 
-func (e *LocalEngine) LookupChannels(topic string, ctx context.Context) (channels []string, err error) {
+func (e *LocalEngine) LookupChannels(ctx context.Context, topic string) (channels []string, err error) {
 	set := make(map[string]bool)
 	e.mutex.RLock()
 

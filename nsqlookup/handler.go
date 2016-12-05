@@ -422,6 +422,18 @@ func (h NodeHandler) ServeConn(conn net.Conn, ctx context.Context) {
 	var r = bufio.NewReaderSize(conn, bufSize)
 	var w = bufio.NewWriterSize(conn, bufSize)
 
+	if h.ReadTimeout == 0 {
+		h.ReadTimeout = DefaultReadTimeout
+	}
+
+	if h.WriteTimeout == 0 {
+		h.WriteTimeout = DefaultWriteTimeout
+	}
+
+	if h.EngineTimeout == 0 {
+		h.EngineTimeout = DefaultEngineTimeout
+	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -454,14 +466,6 @@ func (h NodeHandler) ServeConn(conn net.Conn, ctx context.Context) {
 	if len(h.Info.Version) == 0 {
 		info, _ := h.Engine.LookupInfo(engineContext(ctx))
 		h.Info.Version = info.Version
-	}
-
-	if h.ReadTimeout == 0 {
-		h.ReadTimeout = DefaultReadTimeout
-	}
-
-	if h.WriteTimeout == 0 {
-		h.WriteTimeout = DefaultWriteTimeout
 	}
 
 	var cmdChan = make(chan Command)

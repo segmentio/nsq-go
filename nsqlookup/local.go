@@ -332,9 +332,7 @@ func (n *localNode) lookupTopics(topics map[string]bool) {
 	n.mutex.RLock()
 
 	for topic := range n.topics {
-		if _, skip := n.tombs[topic]; !skip {
-			topics[topic] = true
-		}
+		topics[topic] = true
 	}
 
 	n.mutex.RUnlock()

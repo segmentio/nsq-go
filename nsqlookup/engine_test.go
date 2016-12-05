@@ -3,6 +3,7 @@ package nsqlookup
 import (
 	"fmt"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -39,7 +40,7 @@ func testEngine(t *testing.T, do func(*testing.T, Engine)) {
 
 	for _, test := range tests {
 		t.Run(test.Type, func(t *testing.T) {
-			t.Parallel()
+			//			t.Parallel()
 
 			e := test.New()
 			defer e.Close()
@@ -66,9 +67,9 @@ func TestEngineClose(t *testing.T) {
 func TestEngineRegisterNode(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
 		nodes1 := []NodeInfo{
-			makeNodeInfo(1),
-			makeNodeInfo(2),
-			makeNodeInfo(3),
+			makeNodeInfo(),
+			makeNodeInfo(),
+			makeNodeInfo(),
 		}
 
 		for _, node := range nodes1 {
@@ -92,9 +93,9 @@ func TestEngineRegisterNode(t *testing.T) {
 func TestEngineUnregisterNode(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
 		nodes1 := []NodeInfo{
-			makeNodeInfo(1),
-			makeNodeInfo(2),
-			makeNodeInfo(3),
+			makeNodeInfo(),
+			makeNodeInfo(),
+			makeNodeInfo(),
 		}
 
 		for _, node := range nodes1 {
@@ -122,9 +123,9 @@ func TestEngineUnregisterNode(t *testing.T) {
 func TestEnginePingNode(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
 		nodes1 := []NodeInfo{
-			makeNodeInfo(1),
-			makeNodeInfo(2),
-			makeNodeInfo(3),
+			makeNodeInfo(),
+			makeNodeInfo(),
+			makeNodeInfo(),
 		}
 
 		for _, node := range nodes1 {
@@ -146,9 +147,9 @@ func TestEnginePingNode(t *testing.T) {
 func TestEngineTombstoneTopic(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
 		nodes1 := []NodeInfo{
-			makeNodeInfo(1),
-			makeNodeInfo(2),
-			makeNodeInfo(3),
+			makeNodeInfo(),
+			makeNodeInfo(),
+			makeNodeInfo(),
 		}
 
 		topics1 := [][]string{
@@ -239,9 +240,9 @@ func TestEngineTombstoneTopic(t *testing.T) {
 func TestEngineRegisterTopic(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
 		nodes1 := []NodeInfo{
-			makeNodeInfo(1),
-			makeNodeInfo(2),
-			makeNodeInfo(3),
+			makeNodeInfo(),
+			makeNodeInfo(),
+			makeNodeInfo(),
 		}
 
 		topics1 := [][]string{
@@ -299,9 +300,9 @@ func TestEngineRegisterTopic(t *testing.T) {
 func TestEngineUnregisterTopic(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
 		nodes1 := []NodeInfo{
-			makeNodeInfo(1),
-			makeNodeInfo(2),
-			makeNodeInfo(3),
+			makeNodeInfo(),
+			makeNodeInfo(),
+			makeNodeInfo(),
 		}
 
 		topics1 := [][]string{
@@ -363,9 +364,9 @@ func TestEngineUnregisterTopic(t *testing.T) {
 func TestEngineRegisterChannel(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
 		nodes1 := []NodeInfo{
-			makeNodeInfo(1),
-			makeNodeInfo(2),
-			makeNodeInfo(3),
+			makeNodeInfo(),
+			makeNodeInfo(),
+			makeNodeInfo(),
 		}
 
 		channels1 := [][]string{
@@ -405,9 +406,9 @@ func TestEngineRegisterChannel(t *testing.T) {
 func TestEngineUnregisterChannel(t *testing.T) {
 	testEngine(t, func(t *testing.T, e Engine) {
 		nodes1 := []NodeInfo{
-			makeNodeInfo(1),
-			makeNodeInfo(2),
-			makeNodeInfo(3),
+			makeNodeInfo(),
+			makeNodeInfo(),
+			makeNodeInfo(),
 		}
 
 		channels1 := [][]string{
@@ -456,13 +457,21 @@ func TestEngineCheckHealth(t *testing.T) {
 	})
 }
 
-func makeNodeInfo(i int) NodeInfo {
+var (
+	hosts uint32 = 0
+	ports uint32 = 1024
+)
+
+func makeNodeInfo() NodeInfo {
+	h1 := atomic.AddUint32(&hosts, 1)
+	p1 := atomic.AddUint32(&ports, 1)
+	p2 := atomic.AddUint32(&ports, 1)
 	return NodeInfo{
-		RemoteAddress:    fmt.Sprintf("10.0.0.%d:35000", i),
-		BroadcastAddress: fmt.Sprintf("10.0.0.%d", i),
-		Hostname:         fmt.Sprintf("host-%d", i),
-		TcpPort:          4150,
-		HttpPort:         4151,
+		RemoteAddress:    "10.0.0.1:35000",
+		BroadcastAddress: "10.0.0.1",
+		Hostname:         fmt.Sprintf("host-%d", h1),
+		TcpPort:          int(p1),
+		HttpPort:         int(p2),
 		Version:          "0.3.8",
 	}
 }

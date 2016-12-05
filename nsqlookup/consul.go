@@ -16,18 +16,39 @@ import (
 )
 
 const (
-	DefaultConsulAddress  = "localhost:8500"
-	DefaultRequestTimeout = 10 * time.Second
+	// DefaultConsulAddress is the default address at which a consul agent is
+	// expected to be available for consul engines.
+	DefaultConsulAddress = "localhost:8500"
+
+	// DefaultConsulRequestTimeout is the maximum amount of time that requests
+	// to a consul agent are allowed to take.
+	DefaultConsulRequestTimeout = 1 * time.Second
 )
 
+// The ConsulConfig structure is used to configure consul engines.
 type ConsulConfig struct {
-	Address          string
-	NodeTimeout      time.Duration
+	// The address at which the consul agent is exposing its HTTP API.
+	Address string
+
+	// NodeTImeout is the maximum amount of time a node is allowed to be idle
+	// before it gets evicted.
+	NodeTimeout time.Duration
+
+	// TomstoneTimeout is the amount of time after which a tombstone set on a
+	// topic is evisted.
 	TombstoneTimeout time.Duration
-	RequestTimeout   time.Duration
-	Transport        http.RoundTripper
+
+	// RequestTimeout is the maximum amount of time allowed for requests to
+	// consul agents to respond.
+	RequestTimeout time.Duration
+
+	// Transport used by the engine's HTTP client, the default transport is used
+	// if none is provided.
+	Transport http.RoundTripper
 }
 
+// ConsulEngine are objects that provide the implementation of a nsqlookup
+// engine backed by a consul infrastructure.
 type ConsulEngine struct {
 	client      http.Client
 	address     string
@@ -46,6 +67,7 @@ type consulNode struct {
 	expTime time.Time
 }
 
+// NewConsulEngine creates and return a new engine configured with config.
 func NewConsulEngine(config ConsulConfig) *ConsulEngine {
 	if len(config.Address) == 0 {
 		config.Address = DefaultConsulAddress
@@ -60,7 +82,7 @@ func NewConsulEngine(config ConsulConfig) *ConsulEngine {
 	}
 
 	if config.RequestTimeout == 0 {
-		config.RequestTimeout = DefaultRequestTimeout
+		config.RequestTimeout = DefaultConsulRequestTimeout
 	}
 
 	if !strings.Contains(config.Address, "://") {

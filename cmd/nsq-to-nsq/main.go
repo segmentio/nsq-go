@@ -105,6 +105,7 @@ func rateLimit(limit int, messages <-chan nsq.Message) <-chan nsq.Message {
 		for {
 			select {
 			case <-ticker.C:
+				log.Printf("publish rate of %d msg/sec", count)
 				count = 0
 				input = messages
 
@@ -113,6 +114,7 @@ func rateLimit(limit int, messages <-chan nsq.Message) <-chan nsq.Message {
 
 				if count++; count >= limit {
 					input = nil
+					log.Printf("rate limiting to %d msg/sec", limit)
 				}
 			}
 		}

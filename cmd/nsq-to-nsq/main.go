@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
+	"syscall"
 	"time"
 
 	"github.com/segmentio/conf"
@@ -53,7 +53,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	join := &sync.WaitGroup{}
+	done := make(chan struct{}, len(config.DestinationNsqdTcpAddr))
+	messages := nsq.RateLimit(config.RateLimit, consumer.Messages())
 
 	for _, addr := range config.DestinationNsqdTcpAddr {
 		producer, err := nsq.StartProducer(nsq.ProducerConfig{
@@ -63,20 +64,26 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		join.Add(1)
-		go forward(producer, rateLimit(config.RateLimit, consumer.Messages()), join)
+		go forward(producer, messages, done)
 	}
 
 	sigchan := make(chan os.Signal)
-	signal.Notify(sigchan, os.Interrupt)
+	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigchan
 
 	consumer.Stop()
-	join.Wait()
+
+	for i, n := 0, len(config.DestinationNsqdTcpAddr); i != n; i++ {
+		select {
+		case <-done:
+		case <-sigchan:
+			return // exit on second signal
+		}
+	}
 }
 
-func forward(producer *nsq.Producer, messages <-chan nsq.Message, join *sync.WaitGroup) {
-	defer join.Done()
+func forward(producer *nsq.Producer, messages <-chan nsq.Message, done chan<- struct{}) {
+	defer func() { done <- struct{}{} }()
 
 	for msg := range messages {
 		if err := producer.Publish(msg.Body); err != nil {
@@ -86,44 +93,4 @@ func forward(producer *nsq.Producer, messages <-chan nsq.Message, join *sync.Wai
 			msg.Finish()
 		}
 	}
-}
-
-func rateLimit(limit int, messages <-chan nsq.Message) <-chan nsq.Message {
-	if limit <= 0 {
-		return messages
-	}
-
-	output := make(chan nsq.Message, cap(messages))
-
-	go func() {
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-		defer close(output)
-
-		input := messages
-		count := 0
-
-		for {
-			select {
-			case <-ticker.C:
-				log.Printf("publish rate of %d msg/sec", count)
-				count = 0
-				input = messages
-
-			case msg, ok := <-input:
-				if !ok {
-					return
-				}
-
-				output <- msg
-
-				if count++; count >= limit {
-					input = nil
-					log.Printf("rate limiting to %d msg/sec", limit)
-				}
-			}
-		}
-	}()
-
-	return output
 }

@@ -13,14 +13,14 @@ import (
 
 func main() {
 	config := struct {
-		LookupdHttpAddr        []string `conf:"lookupd-http-addr"         help:"List of nsqlookupd servers"`
-		DestinationNsqdTcpAddr []string `conf:"desintation-nsqd-tcp-addr" help:"List of nsqd nodes to publish to"`
-		NsqdTcpAddr            string   `conf:"nsqd-tcp-addr"             help:"Addres of the nsqd nodes to consume from"`
-		Topic                  string   `conf:"topic"                     help:"Topic to consume messages from"`
-		Channel                string   `conf:"channel"                   help:"Channel to consume messages from"`
-		DestinationTopic       string   `conf:"destination-topic"         help:"Topic to publish to"`
-		RateLimit              int      `conf:"rate-limit"                help:"Maximum number of message per second processed"`
-		MaxInFlight            int      `conf:"max-in-flight"             help:"Maximum number of in-flight messages"`
+		LookupdHttpAddr        []string `conf:"lookupd-http-address"          help:"List of nsqlookupd servers"`
+		DestinationNsqdTcpAddr []string `conf:"destination-nsqd-tcp-address"  help:"List of nsqd nodes to publish to"`
+		NsqdTcpAddr            string   `conf:"nsqd-tcp-address"              help:"Address of the nsqd node to consume from"`
+		Topic                  string   `conf:"topic"                         help:"Topic to consume messages from"`
+		Channel                string   `conf:"channel"                       help:"Channel to consume messages from"`
+		DestinationTopic       string   `conf:"destination-topic"             help:"Topic to publish to"`
+		RateLimit              int      `conf:"rate-limit"                    help:"Maximum number of message per second processed"`
+		MaxInFlight            int      `conf:"max-in-flight"                 help:"Maximum number of in-flight messages"`
 	}{
 		LookupdHttpAddr:        []string{"localhost:4161"},
 		DestinationNsqdTcpAddr: []string{"localhost:4150"},

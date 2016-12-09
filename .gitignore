@@ -28,4 +28,4 @@ _testmain.go
 
 # govendor
 /vendor/*/
-/nsq-to-nsq
+nsq-to-nsq

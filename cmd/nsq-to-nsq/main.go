@@ -110,7 +110,11 @@ func rateLimit(limit int, messages <-chan nsq.Message) <-chan nsq.Message {
 				count = 0
 				input = messages
 
-			case msg := <-input:
+			case msg, ok := <-input:
+				if !ok {
+					return
+				}
+
 				output <- msg
 
 				if count++; count >= limit {

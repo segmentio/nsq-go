@@ -98,6 +98,7 @@ func rateLimit(limit int, messages <-chan nsq.Message) <-chan nsq.Message {
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
+		defer close(output)
 
 		input := messages
 		count := 0

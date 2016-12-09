@@ -301,14 +301,17 @@ func (c *Consumer) approximateRdyCount() (count int) {
 
 // RateLimit consumes messages from the messages channel and limits the rate at
 // which they are produced to the channel returned by this function.
+//
 // The limit is the maximum number of messages per second that are produced.
 // No rate limit is applied if limit is negative or zero.
+//
+// The returned channel is closed when the messages channel is closed.
 func RateLimit(limit int, messages <-chan Message) <-chan Message {
 	if limit <= 0 {
 		return messages
 	}
 
-	output := make(chan Message, cap(messages))
+	output := make(chan Message)
 
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)

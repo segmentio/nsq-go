@@ -19,13 +19,13 @@ func main() {
 	hostname, _ := os.Hostname()
 
 	config := struct {
-		HTTPAddress             net.TCPAddr   `conf:"http-address" help:"<addr>:<port> to listen on for HTTP clients"`
-		TCPAddress              net.TCPAddr   `conf:"tcp-address" help:"<addr>:<port> to listen on for TCP clients"`
-		BroadcastAddress        string        `conf:"broadcast-address" help:"external address of this lookupd node, (default to the OS hostname)"`
-		TombstoneLifetime       time.Duration `conf:"tombstone-lifetime" help:"duration of time a producer will remain tombstoned if registration remains"`
-		InactiveProducerTimeout time.Duration `conf:"inactive-producer-timeout" help:"duration of time a producer will remain in the active list since its last ping"`
-		Verbose                 bool          `conf:"verbose" help:"enable verbose logging"`
-		Version                 bool          `conf:"version" help:"print version string"`
+		HTTPAddress             net.TCPAddr   `conf:"http-address"               help:"<addr>:<port> to listen on for HTTP clients"`
+		TCPAddress              net.TCPAddr   `conf:"tcp-address"                help:"<addr>:<port> to listen on for TCP clients"`
+		BroadcastAddress        string        `conf:"broadcast-address"          help:"external address of this lookupd node, (default to the OS hostname)"`
+		TombstoneLifetime       time.Duration `conf:"tombstone-lifetime"         help:"duration of time a producer will remain tombstoned if registration remains"`
+		InactiveProducerTimeout time.Duration `conf:"inactive-producer-timeout"  help:"duration of time a producer will remain in the active list since its last ping"`
+		Verbose                 bool          `conf:"verbose"                    help:"enable verbose logging"`
+		Version                 bool          `conf:"version"                    help:"print version string"`
 	}{
 		HTTPAddress:             net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: 4161},
 		TCPAddress:              net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: 4160},

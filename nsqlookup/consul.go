@@ -191,8 +191,9 @@ func (e *ConsulEngine) UnregisterNode(ctx context.Context, node NodeInfo) (err e
 	}
 
 	if len(sid) != 0 {
+		key := httpBroadcastAddress(node)
 		e.mutex.Lock()
-		delete(e.nodes, sid)
+		delete(e.nodes, key)
 		e.mutex.Unlock()
 		err = e.destroySession(ctx, sid)
 	}
@@ -214,6 +215,10 @@ func (e *ConsulEngine) PingNode(ctx context.Context, node NodeInfo) (err error) 
 	}
 
 	if err = e.renewSession(ctx, sid); err != nil {
+		key := httpBroadcastAddress(node)
+		e.mutex.Lock()
+		delete(e.nodes, key)
+		e.mutex.Unlock()
 		e.destroySession(ctx, sid)
 	}
 

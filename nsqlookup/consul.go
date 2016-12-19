@@ -210,8 +210,11 @@ func (e *ConsulEngine) PingNode(ctx context.Context, node NodeInfo) (err error) 
 
 	if len(sid) == 0 {
 		err = errMissingNode
-	} else {
-		err = e.renewSession(ctx, sid)
+		return
+	}
+
+	if err = e.renewSession(ctx, sid); err != nil {
+		e.destroySession(ctx, sid)
 	}
 
 	return
@@ -417,6 +420,7 @@ func (e *ConsulEngine) session(node NodeInfo, now time.Time) (sid string, err er
 	if n != nil {
 		n.mutex.RLock()
 		if !now.After(n.expTime) {
+			n.expTime = now.Add(e.nodeTimeout)
 			sid = n.sid
 			err = n.err
 		}

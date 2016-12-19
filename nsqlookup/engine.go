@@ -30,6 +30,11 @@ type NodeInfo struct {
 	Version string `json:"version"`
 }
 
+// String returns a human-readable representation of the node info.
+func (info NodeInfo) String() string {
+	return httpBroadcastAddress(info)
+}
+
 // The EngineInfo structure carries information about a nsqlookup engine.
 type EngineInfo struct {
 	// Type of the engine.
@@ -120,6 +125,20 @@ func (n byNode) Less(i int, j int) bool {
 	n2 := &n[j]
 	return (n1.BroadcastAddress < n2.BroadcastAddress) ||
 		(n1.BroadcastAddress == n2.BroadcastAddress && n1.TcpPort < n2.TcpPort)
+}
+
+func nonNilNodes(n []NodeInfo) []NodeInfo {
+	if n == nil {
+		n = []NodeInfo{}
+	}
+	return n
+}
+
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		s = []string{}
+	}
+	return s
 }
 
 func sortedNodes(n []NodeInfo) []NodeInfo {

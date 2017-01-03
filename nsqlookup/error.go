@@ -15,10 +15,11 @@ type Error struct {
 }
 
 const (
-	ErrInvalid    = "E_INVALID"
-	ErrBadTopic   = "E_BAD_TOPIC"
-	ErrBadChannel = "E_BAD_CHANNEL"
-	ErrBadBody    = "E_BAD_BODY"
+	ErrInvalid     = "E_INVALID"
+	ErrBadTopic    = "E_BAD_TOPIC"
+	ErrBadChannel  = "E_BAD_CHANNEL"
+	ErrBadBody     = "E_BAD_BODY"
+	ErrBadProtocol = "E_BAD_PROTOCOL"
 )
 
 func (e Error) Error() string {
@@ -47,6 +48,10 @@ func makeErrBadChannel(s string, a ...interface{}) Error {
 
 func makeErrBadBody(s string, a ...interface{}) Error {
 	return makeError(ErrBadBody, s, a...)
+}
+
+func makeErrBadProtocol(s string, a ...interface{}) Error {
+	return makeError(ErrBadTopic, s, a...)
 }
 
 func makeError(c string, s string, a ...interface{}) Error {

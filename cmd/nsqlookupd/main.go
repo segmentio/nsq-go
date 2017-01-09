@@ -11,8 +11,16 @@ import (
 	"time"
 
 	"github.com/segmentio/conf"
+	_ "github.com/segmentio/events/ecslogs"
+	"github.com/segmentio/events/httpevents"
+	_ "github.com/segmentio/events/log"
+	"github.com/segmentio/events/netevents"
+	_ "github.com/segmentio/events/text"
 	"github.com/segmentio/netx"
 	"github.com/segmentio/nsq-go/nsqlookup"
+	"github.com/segmentio/stats/datadog"
+	"github.com/segmentio/stats/httpstats"
+	"github.com/segmentio/stats/netstats"
 )
 
 func main() {
@@ -26,6 +34,7 @@ func main() {
 		InactiveProducerTimeout time.Duration `conf:"inactive-producer-timeout"  help:"duration of time a producer will remain in the active list since its last ping"`
 		Verbose                 bool          `conf:"verbose"                    help:"enable verbose logging"`
 		Version                 bool          `conf:"version"                    help:"print version string"`
+		Dogstatsd               string        `conf:"dogstatsd"                  help:"address of a dogstatsd agent to send metrics to"`
 	}{
 		HTTPAddress:             net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: 4161},
 		TCPAddress:              net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: 4160},
@@ -36,6 +45,13 @@ func main() {
 
 	var args = conf.Load(&config)
 	var engine nsqlookup.Engine
+
+	if len(config.Dogstatsd) != 0 {
+		dd := datadog.NewClient(datadog.ClientConfig{
+			Address: config.Dogstatsd,
+		})
+		defer dd.Close()
+	}
 
 	if len(args) == 0 {
 		log.Print("using local nsqlookup engine")
@@ -69,20 +85,20 @@ func main() {
 
 	go func(addr string) {
 		log.Printf("starting http server on %s", addr)
-		errchan <- http.ListenAndServe(addr, nsqlookup.HTTPHandler{
+		errchan <- http.ListenAndServe(addr, httpstats.NewHandler(nil, httpevents.NewHandler(nil, nsqlookup.HTTPHandler{
 			Engine: engine,
-		})
+		})))
 	}(config.HTTPAddress.String())
 
 	go func(addr string) {
 		log.Printf("starting tcp server on %s", addr)
-		errchan <- netx.ListenAndServe(addr, nsqlookup.TCPHandler{
+		errchan <- netx.ListenAndServe(addr, netstats.NewHandler(nil, netevents.NewHandler(nil, nsqlookup.TCPHandler{
 			Engine: engine,
 			Info: nsqlookup.NodeInfo{
 				Hostname:         hostname,
 				BroadcastAddress: config.BroadcastAddress,
 			},
-		})
+		})))
 	}(config.TCPAddress.String())
 
 	select {

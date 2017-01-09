@@ -1,0 +1,121 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
+			"path": "github.com/pkg/errors",
+			"revision": "248dadf4e9068a0b3e79f02ed0a610d935de5302",
+			"revisionTime": "2016-10-29T09:36:37Z"
+		},
+		{
+			"checksumSHA1": "FnUUAZlsmc1urRzg4xlFrEexGcI=",
+			"path": "github.com/segmentio/conf",
+			"revision": "7efb338ce5edcc8a043c0424414eeb85c0f97935",
+			"revisionTime": "2017-01-07T20:55:19Z"
+		},
+		{
+			"checksumSHA1": "HvRihOaNsOjNz9PCd1kJN8B25cU=",
+			"path": "github.com/segmentio/events",
+			"revision": "e704e40e868c38a8455c297a5e4bc2902cd1631d",
+			"revisionTime": "2017-01-07T23:52:51Z"
+		},
+		{
+			"checksumSHA1": "fCqiyZp4FgHEhGvbSvwQqdLo1yA=",
+			"path": "github.com/segmentio/events/httpevents",
+			"revision": "e704e40e868c38a8455c297a5e4bc2902cd1631d",
+			"revisionTime": "2017-01-07T23:52:51Z"
+		},
+		{
+			"checksumSHA1": "iA/8mljcGhrBdQKMOu4gLwj1GJM=",
+			"path": "github.com/segmentio/events/netevents",
+			"revision": "e704e40e868c38a8455c297a5e4bc2902cd1631d",
+			"revisionTime": "2017-01-07T23:52:51Z"
+		},
+		{
+			"checksumSHA1": "3EkgEt+4v0UUqdr5dWkQzug9b7A=",
+			"path": "github.com/segmentio/netx",
+			"revision": "151ec7010ce40e10cb527a1c581f66dfe44801f9",
+			"revisionTime": "2017-01-07T03:28:07Z"
+		},
+		{
+			"checksumSHA1": "KWe+WZJa4DpenhFb16gFglOQKjk=",
+			"path": "github.com/segmentio/nsq-go",
+			"revision": "bf4c9c2a1a77a6fa09d5a94cc1428716d7fd5337",
+			"revisionTime": "2017-01-03T05:57:29Z"
+		},
+		{
+			"checksumSHA1": "hEPin9t7u3pYQBhm2Q/XjpWVqNU=",
+			"path": "github.com/segmentio/nsq-go/nsqlookup",
+			"revision": "bf4c9c2a1a77a6fa09d5a94cc1428716d7fd5337",
+			"revisionTime": "2017-01-03T05:57:29Z"
+		},
+		{
+			"checksumSHA1": "8V1hshQRIil6YSOiRBfj7YX2BeY=",
+			"path": "github.com/segmentio/objconv",
+			"revision": "07e72d5ac00fa942ec00bc58fae3d11000c4834b",
+			"revisionTime": "2017-01-05T06:36:11Z"
+		},
+		{
+			"checksumSHA1": "1q10AsulvRAVqKpVsluqVn472ys=",
+			"path": "github.com/segmentio/objconv/json",
+			"revision": "07e72d5ac00fa942ec00bc58fae3d11000c4834b",
+			"revisionTime": "2017-01-05T06:36:11Z"
+		},
+		{
+			"checksumSHA1": "KfuXQsU9bHl28VKGyHa+QObFRJU=",
+			"path": "github.com/segmentio/objconv/yaml",
+			"revision": "07e72d5ac00fa942ec00bc58fae3d11000c4834b",
+			"revisionTime": "2017-01-05T06:36:11Z"
+		},
+		{
+			"checksumSHA1": "CtTOFmNtVviRlfgoXeRS+IzTLrc=",
+			"path": "github.com/segmentio/stats",
+			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
+			"revisionTime": "2017-01-09T19:15:27Z"
+		},
+		{
+			"checksumSHA1": "aUcaBZ2pC4mqAOI4kB5P1HTuwW8=",
+			"path": "github.com/segmentio/stats/datadog",
+			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
+			"revisionTime": "2017-01-09T19:15:27Z"
+		},
+		{
+			"checksumSHA1": "2oS0jMh05BSDvhlzkKMFk4oF1+k=",
+			"path": "github.com/segmentio/stats/httpstats",
+			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
+			"revisionTime": "2017-01-09T19:15:27Z"
+		},
+		{
+			"checksumSHA1": "poEpVOWzVNefnfJMu+Z6QgzXueQ=",
+			"path": "github.com/segmentio/stats/iostats",
+			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
+			"revisionTime": "2017-01-09T19:15:27Z"
+		},
+		{
+			"checksumSHA1": "h4hgdxafdFPS8UOKOM4nXn6DtCU=",
+			"path": "github.com/segmentio/stats/netstats",
+			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
+			"revisionTime": "2017-01-09T19:15:27Z"
+		},
+		{
+			"checksumSHA1": "SRoPd/V0DDXAPfjAuz+54OIKY7I=",
+			"path": "golang.org/x/crypto/ssh/terminal",
+			"revision": "c3b1d0d6d8690eaebe3064711b026770cc37efa3",
+			"revisionTime": "2017-01-07T14:41:52Z"
+		},
+		{
+			"checksumSHA1": "uTQtOqR0ePMMcvuvAIksiIZxhqU=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "d75a52659825e75fff6158388dddc6a5b04f9ba5",
+			"revisionTime": "2016-12-14T18:38:57Z"
+		},
+		{
+			"checksumSHA1": "12GqsW8PiRPnezDDy0v4brZrndM=",
+			"path": "gopkg.in/yaml.v2",
+			"revision": "a5b47d31c556af34a302ce5d659e6fea44d90de0",
+			"revisionTime": "2016-09-28T15:37:09Z"
+		}
+	],
+	"rootPath": "github.com/segmentio/nsq-go/cmd/nsqlookupd"
+}

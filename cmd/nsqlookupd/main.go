@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/segmentio/conf"
+	"github.com/segmentio/events"
 	_ "github.com/segmentio/events/ecslogs"
 	"github.com/segmentio/events/httpevents"
 	_ "github.com/segmentio/events/log"
@@ -80,8 +81,9 @@ func main() {
 	}
 
 	errchan := make(chan error)
-	sigchan := make(chan os.Signal)
-	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
+	sigsend := make(chan os.Signal)
+	sigrecv := events.Signal(sigsend, nil)
+	signal.Notify(sigsend, syscall.SIGINT, syscall.SIGTERM)
 
 	go func(addr string) {
 		log.Printf("starting http server on %s", addr)
@@ -102,7 +104,7 @@ func main() {
 	}(config.TCPAddress.String())
 
 	select {
-	case <-sigchan:
+	case <-sigrecv:
 	case err := <-errchan:
 		log.Fatal(err)
 	}

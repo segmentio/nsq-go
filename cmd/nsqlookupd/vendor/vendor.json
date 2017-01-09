@@ -15,22 +15,40 @@
 			"revisionTime": "2017-01-07T20:55:19Z"
 		},
 		{
-			"checksumSHA1": "HvRihOaNsOjNz9PCd1kJN8B25cU=",
+			"checksumSHA1": "o9GuXPG9LtA5DeQQqZiCJoArBeE=",
 			"path": "github.com/segmentio/events",
-			"revision": "e704e40e868c38a8455c297a5e4bc2902cd1631d",
-			"revisionTime": "2017-01-07T23:52:51Z"
+			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
+			"revisionTime": "2017-01-09T19:59:48Z"
+		},
+		{
+			"checksumSHA1": "y+9yTeBux9DAVaT8Hu1kqDuTSMs=",
+			"path": "github.com/segmentio/events/ecslogs",
+			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
+			"revisionTime": "2017-01-09T19:59:48Z"
 		},
 		{
 			"checksumSHA1": "fCqiyZp4FgHEhGvbSvwQqdLo1yA=",
 			"path": "github.com/segmentio/events/httpevents",
-			"revision": "e704e40e868c38a8455c297a5e4bc2902cd1631d",
-			"revisionTime": "2017-01-07T23:52:51Z"
+			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
+			"revisionTime": "2017-01-09T19:59:48Z"
+		},
+		{
+			"checksumSHA1": "q3ogho42gJX7ogw6MZ+PPmL5AAo=",
+			"path": "github.com/segmentio/events/log",
+			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
+			"revisionTime": "2017-01-09T19:59:48Z"
 		},
 		{
 			"checksumSHA1": "iA/8mljcGhrBdQKMOu4gLwj1GJM=",
 			"path": "github.com/segmentio/events/netevents",
-			"revision": "e704e40e868c38a8455c297a5e4bc2902cd1631d",
-			"revisionTime": "2017-01-07T23:52:51Z"
+			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
+			"revisionTime": "2017-01-09T19:59:48Z"
+		},
+		{
+			"checksumSHA1": "RcUQ/pPTgHMbLn/7zGrB73UUmIs=",
+			"path": "github.com/segmentio/events/text",
+			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
+			"revisionTime": "2017-01-09T19:59:48Z"
 		},
 		{
 			"checksumSHA1": "3EkgEt+4v0UUqdr5dWkQzug9b7A=",

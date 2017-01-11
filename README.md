@@ -73,7 +73,7 @@ func main() {
     // Publishes a message to the topic that this producer is configured for,
     // the method returns when the operation completes, potentially returning an
     // error if something went wrong.
-    procuder.Publish([]byte("Hello World!"))
+    producer.Publish([]byte("Hello World!"))
 
     // Stops the producer, all in-flight requests will be canceled and no more
     // messages can be published through this producer.

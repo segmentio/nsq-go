@@ -158,21 +158,15 @@ func (e *ConsulEngine) RegisterNode(ctx context.Context, node NodeInfo) (err err
 }
 
 func (e *ConsulEngine) UnregisterNode(ctx context.Context, node NodeInfo) (err error) {
-	var sid string
-	var key = httpBroadcastAddress(node)
-	var now = time.Now()
+	k := httpBroadcastAddress(node)
 
-	if sid, err = e.session(node, now); err != nil {
-		return
-	}
+	e.mutex.Lock()
+	n := e.nodes[k]
+	delete(e.nodes, k)
+	e.mutex.Unlock()
 
-	if len(sid) != 0 {
-		e.mutex.Lock()
-		if n := e.nodes[key]; n.sid == sid {
-			delete(e.nodes, key)
-		}
-		e.mutex.Unlock()
-		err = e.destroySession(ctx, sid)
+	if n != nil {
+		err = e.destroySession(ctx, n.sid)
 	}
 
 	return

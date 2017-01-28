@@ -158,39 +158,53 @@ func (e *ConsulEngine) RegisterNode(ctx context.Context, node NodeInfo) (err err
 }
 
 func (e *ConsulEngine) UnregisterNode(ctx context.Context, node NodeInfo) (err error) {
-	k := httpBroadcastAddress(node)
+	var sid string
+	var key = httpBroadcastAddress(node)
 
 	e.mutex.Lock()
-	n := e.nodes[k]
-	delete(e.nodes, k)
+	n := e.nodes[key]
+	delete(e.nodes, key)
 	e.mutex.Unlock()
 
-	if n != nil {
-		err = e.destroySession(ctx, n.sid)
+	if n == nil {
+		return errMissingNode
 	}
 
-	return
+	n.mutex.RLock()
+	sid = n.sid
+	err = n.err
+	n.mutex.RUnlock()
+
+	if err != nil {
+		return
+	}
+
+	return e.destroySession(ctx, sid)
 }
 
 func (e *ConsulEngine) PingNode(ctx context.Context, node NodeInfo) (err error) {
 	var key = httpBroadcastAddress(node)
 	var now = time.Now()
+	var sid string
 
 	e.mutex.RLock()
 	n := e.nodes[key]
 	e.mutex.RUnlock()
 
 	if n == nil {
-		err = errMissingNode
+		return errMissingNode
+	}
+
+	n.mutex.RLock()
+	sid = n.sid
+	err = n.err
+	n.mutex.RUnlock()
+
+	if err != nil {
 		return
 	}
 
-	if err = e.renewSession(ctx, n.sid); err != nil {
-		key := httpBroadcastAddress(node)
-		e.mutex.Lock()
-		delete(e.nodes, key)
-		e.mutex.Unlock()
-		e.destroySession(ctx, n.sid)
+	if err = e.renewSession(ctx, sid); err != nil {
 		return
 	}
 
@@ -206,11 +220,6 @@ func (e *ConsulEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic 
 	var exp = now.Add(e.tombTimeout)
 
 	if sid, err = e.session(node, now); err != nil {
-		return
-	}
-
-	if len(sid) == 0 {
-		err = errMissingNode
 		return
 	}
 
@@ -231,33 +240,13 @@ func (e *ConsulEngine) RegisterTopic(ctx context.Context, node NodeInfo, topic s
 		return
 	}
 
-	if len(sid) == 0 {
-		err = errMissingNode
-	} else {
-		err = e.registerTopic(ctx, node, topic, sid)
-	}
-
-	return
+	return e.registerTopic(ctx, node, topic, sid)
 }
 
 func (e *ConsulEngine) UnregisterTopic(ctx context.Context, node NodeInfo, topic string) (err error) {
-	var sid string
-	var now = time.Now()
-
-	if sid, err = e.session(node, now); err != nil {
-		return
-	}
-
-	if len(sid) == 0 {
-		err = errMissingNode
-	} else {
-		err = e.unregisterTopic(ctx, node, topic)
-	}
-
-	if consulErrorNotFound(err) {
+	if err = e.unregisterTopic(ctx, node, topic); err != nil && consulErrorNotFound(err) {
 		err = nil
 	}
-
 	return
 }
 
@@ -266,11 +255,6 @@ func (e *ConsulEngine) RegisterChannel(ctx context.Context, node NodeInfo, topic
 	var now = time.Now()
 
 	if sid, err = e.session(node, now); err != nil {
-		return
-	}
-
-	if len(sid) == 0 {
-		err = errMissingNode
 		return
 	}
 
@@ -283,23 +267,9 @@ func (e *ConsulEngine) RegisterChannel(ctx context.Context, node NodeInfo, topic
 }
 
 func (e *ConsulEngine) UnregisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) (err error) {
-	var sid string
-	var now = time.Now()
-
-	if sid, err = e.session(node, now); err != nil {
-		return
-	}
-
-	if len(sid) == 0 {
-		err = errMissingNode
-	} else {
-		err = e.unregisterChannel(ctx, node, topic, channel)
-	}
-
-	if consulErrorNotFound(err) {
+	if err = e.unregisterChannel(ctx, node, topic, channel); err != nil && consulErrorNotFound(err) {
 		err = nil
 	}
-
 	return
 }
 
@@ -397,13 +367,19 @@ func (e *ConsulEngine) session(node NodeInfo, now time.Time) (sid string, err er
 	n := e.nodes[key]
 	e.mutex.RUnlock()
 
-	if n != nil {
-		n.mutex.RLock()
-		sid = n.sid
-		err = n.err
-		n.mutex.RUnlock()
+	if n == nil {
+		err = errMissingNode
+		return
 	}
 
+	n.mutex.RLock()
+	if now.After(n.expTime) {
+		err = errMissingNode
+	} else {
+		sid = n.sid
+		err = n.err
+	}
+	n.mutex.RUnlock()
 	return
 }
 

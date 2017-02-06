@@ -3,6 +3,7 @@ package nsq
 import (
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -29,6 +30,7 @@ type Producer struct {
 	done chan struct{}
 	once sync.Once
 	join sync.WaitGroup
+	ok   uint32
 
 	// Immutable state of the producer.
 	address         string
@@ -172,6 +174,12 @@ func (p *Producer) Requests() chan<- ProducerRequest {
 	return p.reqs
 }
 
+// Connected returns true if the producer has successfully established a
+// connection to nsqd, false otherwise.
+func (p *Producer) Connected() bool {
+	return atomic.LoadUint32(&p.ok) != 0
+}
+
 func (p *Producer) stop() {
 	close(p.done)
 	close(p.reqs)
@@ -184,6 +192,8 @@ func (p *Producer) run() {
 	var retry time.Duration
 
 	shutdown := func(err error) {
+		atomic.StoreUint32(&p.ok, 0)
+
 		if conn != nil {
 			close(resChan)
 			conn.Close()
@@ -228,6 +238,8 @@ func (p *Producer) run() {
 				retry = 0
 				resChan = make(chan Frame, 16)
 				go p.flush(conn, resChan)
+
+				atomic.StoreUint32(&p.ok, 1)
 			}
 
 			if err := p.publish(conn, req.Topic, req.Message); err != nil {

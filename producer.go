@@ -12,14 +12,12 @@ import (
 // ProducerConfig carries the different variables to tune a newly started
 // producer.
 type ProducerConfig struct {
-	Address         string
-	Topic           string
-	MaxConcurrency  int
-	DialTimeout     time.Duration
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	MaxRetryTimeout time.Duration
-	MinRetryTimeout time.Duration
+	Address        string
+	Topic          string
+	MaxConcurrency int
+	DialTimeout    time.Duration
+	ReadTimeout    time.Duration
+	WriteTimeout   time.Duration
 }
 
 // Producer provide an abstraction around using direct connections to nsqd
@@ -33,13 +31,11 @@ type Producer struct {
 	ok   uint32
 
 	// Immutable state of the producer.
-	address         string
-	topic           string
-	dialTimeout     time.Duration
-	readTimeout     time.Duration
-	writeTimeout    time.Duration
-	maxRetryTimeout time.Duration
-	minRetryTimeout time.Duration
+	address      string
+	topic        string
+	dialTimeout  time.Duration
+	readTimeout  time.Duration
+	writeTimeout time.Duration
 }
 
 // ProducerRequest are used to represent operations that are submitted to
@@ -75,24 +71,14 @@ func StartProducer(config ProducerConfig) (p *Producer, err error) {
 		config.WriteTimeout = DefaultWriteTimeout
 	}
 
-	if config.MaxRetryTimeout == 0 {
-		config.MaxRetryTimeout = DefaultMaxRetryTimeout
-	}
-
-	if config.MinRetryTimeout == 0 {
-		config.MinRetryTimeout = DefaultMinRetryTimeout
-	}
-
 	p = &Producer{
-		reqs:            make(chan ProducerRequest, config.MaxConcurrency),
-		done:            make(chan struct{}),
-		address:         config.Address,
-		topic:           config.Topic,
-		dialTimeout:     config.DialTimeout,
-		readTimeout:     config.ReadTimeout,
-		writeTimeout:    config.WriteTimeout,
-		maxRetryTimeout: config.MaxRetryTimeout,
-		minRetryTimeout: config.MinRetryTimeout,
+		reqs:         make(chan ProducerRequest, config.MaxConcurrency),
+		done:         make(chan struct{}),
+		address:      config.Address,
+		topic:        config.Topic,
+		dialTimeout:  config.DialTimeout,
+		readTimeout:  config.ReadTimeout,
+		writeTimeout: config.WriteTimeout,
 	}
 	p.join.Add(config.MaxConcurrency)
 
@@ -190,7 +176,6 @@ func (p *Producer) run() {
 	var reqChan <-chan ProducerRequest
 	var resChan chan Frame
 	var pending []ProducerRequest
-	var retry time.Duration
 
 	shutdown := func(err error) {
 		atomic.StoreUint32(&p.ok, 0)
@@ -207,12 +192,10 @@ func (p *Producer) run() {
 
 	connect := func() (err error) {
 		if conn, err = DialTimeout(p.address, p.dialTimeout); err != nil {
-			log.Printf("failed to connect to %s, retrying after %s: %s", p.address, retry, err)
-			retry = p.sleep(retry)
+			log.Printf("failed to connect to %s: %s", p.address, err)
 			return
 		}
 
-		retry = 0
 		reqChan = p.reqs
 		resChan = make(chan Frame, 16)
 		go p.flush(conn, resChan)
@@ -326,26 +309,6 @@ func (p *Producer) publish(conn *Conn, topic string, message []byte) error {
 
 func (p *Producer) ping(conn *Conn) error {
 	return p.write(conn, Nop{})
-}
-
-func (p *Producer) sleep(d time.Duration) time.Duration {
-	if d < p.minRetryTimeout {
-		d = p.minRetryTimeout
-	}
-
-	t := time.NewTimer(d)
-	defer t.Stop()
-
-	select {
-	case <-t.C:
-	case <-p.done:
-	}
-
-	if d *= 2; d > p.maxRetryTimeout {
-		d = p.maxRetryTimeout
-	}
-
-	return d
 }
 
 func (r ProducerRequest) complete(err error) {

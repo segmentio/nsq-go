@@ -227,6 +227,10 @@ func (p *Producer) run() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	if p.forceConnect {
+		connect()
+	}
+
 	for {
 		select {
 		case <-p.done:

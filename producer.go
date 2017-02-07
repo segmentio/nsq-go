@@ -188,11 +188,17 @@ func (p *Producer) run() {
 			resChan = nil
 			pending = completeAllProducerRequests(pending, err)
 		}
+
+		if err != nil {
+			log.Printf("closing nsqd connection to %s: %s", p.address, err)
+		}
 	}
 
 	connect := func() (err error) {
+		log.Printf("opening nsqd connection to %s", p.address)
+
 		if conn, err = DialTimeout(p.address, p.dialTimeout); err != nil {
-			log.Printf("failed to connect to %s: %s", p.address, err)
+			log.Printf("failed to connect to nsqd at %s: %s", p.address, err)
 			return
 		}
 

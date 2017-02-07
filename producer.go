@@ -15,6 +15,7 @@ type ProducerConfig struct {
 	Address         string
 	Topic           string
 	MaxConcurrency  int
+	ForceConnect    bool
 	DialTimeout     time.Duration
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
@@ -35,6 +36,7 @@ type Producer struct {
 	// Immutable state of the producer.
 	address         string
 	topic           string
+	forceConnect    bool
 	dialTimeout     time.Duration
 	readTimeout     time.Duration
 	writeTimeout    time.Duration
@@ -88,6 +90,7 @@ func StartProducer(config ProducerConfig) (p *Producer, err error) {
 		done:            make(chan struct{}),
 		address:         config.Address,
 		topic:           config.Topic,
+		forceConnect:    config.ForceConnect,
 		dialTimeout:     config.DialTimeout,
 		readTimeout:     config.ReadTimeout,
 		writeTimeout:    config.WriteTimeout,
@@ -203,6 +206,21 @@ func (p *Producer) run() {
 		}
 	}
 
+	connect := func() (err error) {
+		if conn, err = DialTimeout(p.address, p.dialTimeout); err != nil {
+			log.Printf("failed to connect to %s, retrying after %s: %s", p.address, retry, err)
+			retry = p.sleep(retry)
+			return
+		}
+
+		retry = 0
+		resChan = make(chan Frame, 16)
+		go p.flush(conn, resChan)
+
+		atomic.StoreUint32(&p.ok, 1)
+		return
+	}
+
 	defer p.join.Done()
 	defer shutdown(nil)
 
@@ -215,6 +233,10 @@ func (p *Producer) run() {
 			return
 
 		case now := <-ticker.C:
+			if p.forceConnect && conn == nil {
+				connect()
+			}
+
 			if producerRequestsTimedOut(pending, now) {
 				shutdown(errors.New("timeout"))
 				continue
@@ -226,20 +248,10 @@ func (p *Producer) run() {
 			}
 
 			if conn == nil {
-				var err error
-
-				if conn, err = DialTimeout(p.address, p.dialTimeout); err != nil {
+				if err := connect(); err != nil {
 					req.complete(err)
-					log.Printf("failed to connect to %s, retrying after %s: %s", p.address, retry, err)
-					retry = p.sleep(retry)
 					continue
 				}
-
-				retry = 0
-				resChan = make(chan Frame, 16)
-				go p.flush(conn, resChan)
-
-				atomic.StoreUint32(&p.ok, 1)
 			}
 
 			if err := p.publish(conn, req.Topic, req.Message); err != nil {

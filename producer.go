@@ -15,7 +15,6 @@ type ProducerConfig struct {
 	Address         string
 	Topic           string
 	MaxConcurrency  int
-	ForceConnect    bool
 	DialTimeout     time.Duration
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
@@ -36,7 +35,6 @@ type Producer struct {
 	// Immutable state of the producer.
 	address         string
 	topic           string
-	forceConnect    bool
 	dialTimeout     time.Duration
 	readTimeout     time.Duration
 	writeTimeout    time.Duration
@@ -90,7 +88,6 @@ func StartProducer(config ProducerConfig) (p *Producer, err error) {
 		done:            make(chan struct{}),
 		address:         config.Address,
 		topic:           config.Topic,
-		forceConnect:    config.ForceConnect,
 		dialTimeout:     config.DialTimeout,
 		readTimeout:     config.ReadTimeout,
 		writeTimeout:    config.WriteTimeout,
@@ -190,6 +187,7 @@ func (p *Producer) stop() {
 
 func (p *Producer) run() {
 	var conn *Conn
+	var reqChan <-chan ProducerRequest
 	var resChan chan Frame
 	var pending []ProducerRequest
 	var retry time.Duration
@@ -201,6 +199,7 @@ func (p *Producer) run() {
 			close(resChan)
 			conn.Close()
 			conn = nil
+			reqChan = nil
 			resChan = nil
 			pending = completeAllProducerRequests(pending, err)
 		}
@@ -214,6 +213,7 @@ func (p *Producer) run() {
 		}
 
 		retry = 0
+		reqChan = p.reqs
 		resChan = make(chan Frame, 16)
 		go p.flush(conn, resChan)
 
@@ -227,9 +227,7 @@ func (p *Producer) run() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	if p.forceConnect {
-		connect()
-	}
+	connect()
 
 	for {
 		select {
@@ -237,7 +235,7 @@ func (p *Producer) run() {
 			return
 
 		case now := <-ticker.C:
-			if p.forceConnect && conn == nil {
+			if conn == nil {
 				connect()
 			}
 
@@ -246,16 +244,9 @@ func (p *Producer) run() {
 				continue
 			}
 
-		case req, ok := <-p.reqs:
+		case req, ok := <-reqChan:
 			if !ok {
 				return
-			}
-
-			if conn == nil {
-				if err := connect(); err != nil {
-					req.complete(err)
-					continue
-				}
 			}
 
 			if err := p.publish(conn, req.Topic, req.Message); err != nil {

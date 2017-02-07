@@ -300,7 +300,7 @@ func (p *Producer) flush(conn *Conn, resChan chan<- Frame) {
 }
 
 func (p *Producer) write(conn *Conn, cmd Command) (err error) {
-	if err = conn.SetDeadline(time.Now().Add(p.writeTimeout)); err == nil {
+	if err = conn.SetWriteDeadline(time.Now().Add(p.writeTimeout)); err == nil {
 		err = conn.WriteCommand(cmd)
 	}
 	return

@@ -454,8 +454,8 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 	}
 
 	engineContext := func(ctx context.Context) context.Context {
-		ctx, _ = context.WithTimeout(ctx, h.EngineTimeout)
-		return ctx
+		ectx, _ := context.WithTimeout(ctx, h.EngineTimeout)
+		return ectx
 	}
 
 	defer func() {

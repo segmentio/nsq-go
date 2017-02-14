@@ -484,7 +484,8 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 
 	defer func() {
 		if node != nil {
-			node.Unregister(engineContext(ctx))
+			err := node.Unregister(engineContext(ctx))
+			log.Printf("UNREGISTER node = %s, err = %s", node, err)
 		}
 	}()
 	defer close(resChan)

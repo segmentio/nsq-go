@@ -32,6 +32,9 @@ type NodeInfo struct {
 
 // String returns a human-readable representation of the node info.
 func (info NodeInfo) String() string {
+	if len(info.Hostname) != 0 {
+		return info.Hostname
+	}
 	return httpBroadcastAddress(info)
 }
 
@@ -59,34 +62,10 @@ type Engine interface {
 
 	// RegisterNode is called by nsqlookup servers when a new node is attempting
 	// to register.
-	RegisterNode(ctx context.Context, node NodeInfo) error
-
-	// UnregisterNode is called by nsqlookup servers when a node that had
-	// previously registered is going away.
-	UnregisterNode(ctx context.Context, node NodeInfo) error
-
-	// PingNode is called by nsqlookup servers when a registered node sends a
-	// ping command to inform that it is still alive.
-	PingNode(ctx context.Context, node NodeInfo) error
+	RegisterNode(ctx context.Context, node NodeInfo) (Node, error)
 
 	// TombstoneTopic marks topic as tombstoned on node.
 	TombstoneTopic(ctx context.Context, node NodeInfo, topic string) error
-
-	// RegisterTopic is called by nsqlookup servers when topic is being
-	// registered on node.
-	RegisterTopic(ctx context.Context, node NodeInfo, topic string) error
-
-	// UnregisterTopic is called by nsqlookup servers when topic is being
-	// unregistered from node.
-	UnregisterTopic(ctx context.Context, node NodeInfo, topic string) error
-
-	// RegisterChannel is called by nsqlookup servers when channel from topic is
-	// being registered on node.
-	RegisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) error
-
-	// UnregisterChannel is called by nsqlookup servers when channel from topic
-	// is being unregistered from node.
-	UnregisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) error
 
 	// LookupNodes must return a list of of all nodes registered on the engine.
 	LookupNodes(ctx context.Context) ([]NodeInfo, error)
@@ -108,6 +87,38 @@ type Engine interface {
 	// CheckHealth is called by nsqlookup servers to evaluate the health of the
 	// engine.
 	CheckHealth(ctx context.Context) error
+}
+
+// The Node interface is used to represent a single node registered within a
+// nsqlookup engine.
+type Node interface {
+	// Info should return the info given to RegisterNode when the node was
+	// created.
+	Info() NodeInfo
+
+	// Ping is called by nsqlookup servers when a registered node sends a
+	// ping command to inform that it is still alive.
+	Ping(ctx context.Context) error
+
+	// Unregister is called by nsqlookup servers when a node that had
+	// previously registered is going away.
+	Unregister(ctx context.Context) error
+
+	// RegisterTopic is called by nsqlookup servers when topic is being
+	// registered on node.
+	RegisterTopic(ctx context.Context, topic string) error
+
+	// UnregisterTopic is called by nsqlookup servers when topic is being
+	// unregistered from node.
+	UnregisterTopic(ctx context.Context, topic string) error
+
+	// RegisterChannel is called by nsqlookup servers when channel from topic is
+	// being registered on node.
+	RegisterChannel(ctx context.Context, topic string, channel string) error
+
+	// UnregisterChannel is called by nsqlookup servers when channel from topic
+	// is being unregistered from node.
+	UnregisterChannel(ctx context.Context, topic string, channel string) error
 }
 
 type byNode []NodeInfo

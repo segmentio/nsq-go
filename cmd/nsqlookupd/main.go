@@ -65,11 +65,18 @@ func main() {
 		arg := args[0]
 		switch {
 		case strings.HasPrefix(arg, "consul://"):
+			var transport http.RoundTripper = http.DefaultTransport
+
+			if config.Verbose {
+				transport = httpevents.NewTransport(nil, transport)
+			}
+
 			log.Print("using consul nsqlookup engine")
 			engine = nsqlookup.NewConsulEngine(nsqlookup.ConsulConfig{
 				Address:          arg[9:],
 				NodeTimeout:      config.InactiveProducerTimeout,
 				TombstoneTimeout: config.TombstoneLifetime,
+				Transport:        transport,
 			})
 
 		default:
@@ -86,21 +93,33 @@ func main() {
 	signal.Notify(sigsend, syscall.SIGINT, syscall.SIGTERM)
 
 	go func(addr string) {
-		log.Printf("starting http server on %s", addr)
-		errchan <- http.ListenAndServe(addr, httpstats.NewHandler(nil, httpevents.NewHandler(nil, nsqlookup.HTTPHandler{
+		var handler http.Handler = nsqlookup.HTTPHandler{
 			Engine: engine,
-		})))
+		}
+
+		if config.Verbose {
+			handler = httpevents.NewHandler(nil, handler)
+		}
+
+		log.Printf("starting http server on %s", addr)
+		errchan <- http.ListenAndServe(addr, httpstats.NewHandler(nil, handler))
 	}(config.HTTPAddress.String())
 
 	go func(addr string) {
-		log.Printf("starting tcp server on %s", addr)
-		errchan <- netx.ListenAndServe(addr, netstats.NewHandler(nil, netevents.NewHandler(nil, nsqlookup.TCPHandler{
+		var handler netx.Handler = nsqlookup.TCPHandler{
 			Engine: engine,
 			Info: nsqlookup.NodeInfo{
 				Hostname:         hostname,
 				BroadcastAddress: config.BroadcastAddress,
 			},
-		})))
+		}
+
+		if config.Verbose {
+			handler = netevents.NewHandler(nil, handler)
+		}
+
+		log.Printf("starting tcp server on %s", addr)
+		errchan <- netx.ListenAndServe(addr, netstats.NewHandler(nil, handler))
 	}(config.TCPAddress.String())
 
 	select {

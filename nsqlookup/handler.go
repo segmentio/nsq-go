@@ -433,7 +433,6 @@ type TCPHandler struct {
 func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 	const bufSize = 2048
 
-	var node NodeInfo
 	var r = bufio.NewReaderSize(conn, bufSize)
 	var w = bufio.NewWriterSize(conn, bufSize)
 
@@ -458,12 +457,6 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 		return ectx
 	}
 
-	defer func() {
-		if node != (NodeInfo{}) {
-			h.Engine.UnregisterNode(engineContext(ctx), node)
-		}
-	}()
-
 	host, port, _ := net.SplitHostPort(conn.LocalAddr().String())
 
 	if h.Info.TcpPort == 0 {
@@ -483,11 +476,18 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 		h.Info.Version = info.Version
 	}
 
+	var node Node
 	var cmdChan = make(chan Command)
 	var resChan = make(chan Response)
 	var errChan = make(chan error, 2)
 	var doneChan = ctx.Done()
 
+	defer func() {
+		if node != nil {
+			err := node.Unregister(engineContext(ctx))
+			log.Printf("UNREGISTER node = %s, err = %s", node, err)
+		}
+	}()
 	defer close(resChan)
 
 	go h.readLoop(ctx, conn, r, cmdChan, errChan)
@@ -543,8 +543,8 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 	}
 }
 
-func (h TCPHandler) identify(ctx context.Context, node NodeInfo, info NodeInfo, conn net.Conn) (id NodeInfo, res RawResponse, err error) {
-	if node != (NodeInfo{}) {
+func (h TCPHandler) identify(ctx context.Context, node Node, info NodeInfo, conn net.Conn) (id Node, res RawResponse, err error) {
+	if node != nil {
 		id, err = node, errCannotIdentifyAgain
 		return
 	}
@@ -554,54 +554,54 @@ func (h TCPHandler) identify(ctx context.Context, node NodeInfo, info NodeInfo, 
 	}
 
 	b, _ := json.Marshal(h.Info)
-	id, res = info, RawResponse(b)
-	err = h.Engine.RegisterNode(ctx, info)
+	res = RawResponse(b)
+	id, err = h.Engine.RegisterNode(ctx, info)
 
-	log.Printf("IDENTIFY node = %v, err = %v", info, err)
+	log.Printf("IDENTIFY node = %s, err = %v", info, err)
 	return
 }
 
-func (h TCPHandler) ping(ctx context.Context, node NodeInfo) (res OK, err error) {
-	if node != (NodeInfo{}) { // ping may arrive before identify
-		err = h.Engine.PingNode(ctx, node)
-		log.Printf("PING node = %v, err = %v", node, err)
+func (h TCPHandler) ping(ctx context.Context, node Node) (res OK, err error) {
+	if node != nil { // ping may arrive before identify
+		err = node.Ping(ctx)
+		log.Printf("PING node = %s, err = %v", node, err)
 	}
 	return
 }
 
-func (h TCPHandler) register(ctx context.Context, node NodeInfo, topic string, channel string) (res OK, err error) {
-	if node == (NodeInfo{}) {
+func (h TCPHandler) register(ctx context.Context, node Node, topic string, channel string) (res OK, err error) {
+	if node == nil {
 		err = errClientMustIdentify
 		return
 	}
 
 	switch {
 	case len(channel) != 0:
-		err = h.Engine.RegisterChannel(ctx, node, topic, channel)
+		err = node.RegisterChannel(ctx, topic, channel)
 
 	case len(topic) != 0:
-		err = h.Engine.RegisterTopic(ctx, node, topic)
+		err = node.RegisterTopic(ctx, topic)
 
 	default:
 		err = makeErrBadTopic("missing topic name")
 	}
 
-	log.Printf("REGISTER node = %v, err = %v", node, err)
+	log.Printf("REGISTER node = %s, topic = %s, channel = %s, err = %v", node, topic, channel, err)
 	return
 }
 
-func (h TCPHandler) unregister(ctx context.Context, node NodeInfo, topic string, channel string) (id NodeInfo, res OK, err error) {
-	if node == (NodeInfo{}) {
+func (h TCPHandler) unregister(ctx context.Context, node Node, topic string, channel string) (id Node, res OK, err error) {
+	if node == nil {
 		err = errClientMustIdentify
 		return
 	}
 
 	switch {
 	case len(channel) != 0:
-		err = h.Engine.UnregisterChannel(ctx, node, topic, channel)
+		err = node.UnregisterChannel(ctx, topic, channel)
 
 	case len(topic) != 0:
-		err = h.Engine.UnregisterTopic(ctx, node, topic)
+		err = node.UnregisterTopic(ctx, topic)
 
 	default:
 		err = makeErrBadTopic("missing topic name")
@@ -611,7 +611,7 @@ func (h TCPHandler) unregister(ctx context.Context, node NodeInfo, topic string,
 		id = node
 	}
 
-	log.Printf("UNREGISTER node = %v, err = %v", node, err)
+	log.Printf("UNREGISTER node = %s, topic = %s, channel = %s, err = %v", node, topic, channel, err)
 	return
 }
 
@@ -703,4 +703,5 @@ var (
 	errClientMustIdentify  = errors.New("client must identify")
 	errCannotIdentifyAgain = errors.New("cannot identify again")
 	errMissingNode         = errors.New("the node doesn't exist")
+	errExpiredNode         = errors.New("the node has expired")
 )

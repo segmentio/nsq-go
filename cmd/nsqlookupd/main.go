@@ -68,7 +68,7 @@ func main() {
 			var transport http.RoundTripper = http.DefaultTransport
 
 			if config.Verbose {
-				transport = events.NewTransport(nil, transport)
+				transport = httpevents.NewTransport(nil, transport)
 			}
 
 			log.Print("using consul nsqlookup engine")

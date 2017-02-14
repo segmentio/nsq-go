@@ -32,6 +32,9 @@ type NodeInfo struct {
 
 // String returns a human-readable representation of the node info.
 func (info NodeInfo) String() string {
+	if len(info.Hostname) != 0 {
+		return info.Hostname
+	}
 	return httpBroadcastAddress(info)
 }
 

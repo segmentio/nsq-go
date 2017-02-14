@@ -57,18 +57,6 @@
 			"revisionTime": "2017-01-07T03:28:07Z"
 		},
 		{
-			"checksumSHA1": "KWe+WZJa4DpenhFb16gFglOQKjk=",
-			"path": "github.com/segmentio/nsq-go",
-			"revision": "bf4c9c2a1a77a6fa09d5a94cc1428716d7fd5337",
-			"revisionTime": "2017-01-03T05:57:29Z"
-		},
-		{
-			"checksumSHA1": "hEPin9t7u3pYQBhm2Q/XjpWVqNU=",
-			"path": "github.com/segmentio/nsq-go/nsqlookup",
-			"revision": "bf4c9c2a1a77a6fa09d5a94cc1428716d7fd5337",
-			"revisionTime": "2017-01-03T05:57:29Z"
-		},
-		{
 			"checksumSHA1": "8V1hshQRIil6YSOiRBfj7YX2BeY=",
 			"path": "github.com/segmentio/objconv",
 			"revision": "07e72d5ac00fa942ec00bc58fae3d11000c4834b",

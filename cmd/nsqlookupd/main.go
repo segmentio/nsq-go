@@ -65,11 +65,18 @@ func main() {
 		arg := args[0]
 		switch {
 		case strings.HasPrefix(arg, "consul://"):
+			var transport http.RoundTripper = http.DefaultTransport
+
+			if config.Verbose {
+				transport = events.NewTransport(nil, transport)
+			}
+
 			log.Print("using consul nsqlookup engine")
 			engine = nsqlookup.NewConsulEngine(nsqlookup.ConsulConfig{
 				Address:          arg[9:],
 				NodeTimeout:      config.InactiveProducerTimeout,
 				TombstoneTimeout: config.TombstoneLifetime,
+				Transport:        transport,
 			})
 
 		default:

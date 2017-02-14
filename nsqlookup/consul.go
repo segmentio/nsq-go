@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -56,10 +55,6 @@ type ConsulEngine struct {
 	namespace   string
 	nodeTimeout time.Duration
 	tombTimeout time.Duration
-
-	once  sync.Once
-	mutex sync.RWMutex
-	nodes map[string]*consulNode
 }
 
 // NewConsulEngine creates and return a new engine configured with config.
@@ -90,127 +85,25 @@ func NewConsulEngine(config ConsulConfig) *ConsulEngine {
 		namespace:   config.Namespace,
 		nodeTimeout: config.NodeTimeout,
 		tombTimeout: config.TombstoneTimeout,
-		nodes:       make(map[string]*consulNode),
 	}
 }
 
 func (e *ConsulEngine) Close() (err error) {
-	e.once.Do(func() {
-		e.mutex.Lock()
-		list := make([]string, 0, len(e.nodes))
-
-		for _, node := range e.nodes {
-			node.mutex.Lock()
-			if sid := node.sid; len(sid) != 0 {
-				list = append(list, sid)
-			}
-			node.mutex.Unlock()
-		}
-
-		e.nodes = nil
-		e.mutex.Unlock()
-
-		ctx, cancel := context.WithTimeout(context.Background(), DefaultEngineTimeout)
-		defer cancel()
-
-		join := &sync.WaitGroup{}
-
-		for _, sid := range list {
-			join.Add(1)
-			go func(sid string) {
-				defer join.Done()
-				e.destroySession(ctx, sid)
-			}(sid)
-		}
-
-		e.unsetKey(ctx, e.key("")) // remove the namespace
-		join.Wait()
-	})
 	return
 }
 
-func (e *ConsulEngine) RegisterNode(ctx context.Context, node NodeInfo) (err error) {
+func (e *ConsulEngine) RegisterNode(ctx context.Context, node NodeInfo) (n Node, err error) {
 	var sid string
-	var now = time.Now()
-	var key = httpBroadcastAddress(node)
-	var n *consulNode
-
-	e.mutex.Lock()
-	if n = e.nodes[key]; n == nil {
-		n = &consulNode{expTime: now.Add(e.nodeTimeout)}
-		e.nodes[key] = n
-	}
-	n.mutex.Lock()
-	e.mutex.Unlock()
 
 	if sid, err = e.createSession(ctx, e.nodeTimeout); err != nil {
-		n.err = err
-	} else {
-		n.sid = sid
-		if err = e.registerNode(ctx, node, sid); err != nil {
-			n.sid = ""
-			n.err = err
-		}
-	}
-
-	n.mutex.Unlock()
-	return
-}
-
-func (e *ConsulEngine) UnregisterNode(ctx context.Context, node NodeInfo) (err error) {
-	var sid string
-	var key = httpBroadcastAddress(node)
-
-	e.mutex.Lock()
-	n := e.nodes[key]
-	delete(e.nodes, key)
-	e.mutex.Unlock()
-
-	if n == nil {
-		return errMissingNode
-	}
-
-	n.mutex.RLock()
-	sid = n.sid
-	err = n.err
-	n.mutex.RUnlock()
-
-	if err != nil {
 		return
 	}
 
-	return e.destroySession(ctx, sid)
-}
-
-func (e *ConsulEngine) PingNode(ctx context.Context, node NodeInfo) (err error) {
-	var key = httpBroadcastAddress(node)
-	var now = time.Now()
-	var sid string
-
-	e.mutex.RLock()
-	n := e.nodes[key]
-	e.mutex.RUnlock()
-
-	if n == nil {
-		return errMissingNode
-	}
-
-	n.mutex.RLock()
-	sid = n.sid
-	err = n.err
-	n.mutex.RUnlock()
-
-	if err != nil {
+	if err = e.registerNode(ctx, node, sid); err != nil {
 		return
 	}
 
-	if err = e.renewSession(ctx, sid); err != nil {
-		return
-	}
-
-	n.mutex.Lock()
-	n.expTime = now.Add(e.nodeTimeout)
-	n.mutex.Unlock()
+	n = newConsulNode(e, sid, node)
 	return
 }
 
@@ -219,57 +112,12 @@ func (e *ConsulEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic 
 	var now = time.Now()
 	var exp = now.Add(e.tombTimeout)
 
-	if sid, err = e.session(node, now); err != nil {
-		return
-	}
-
 	// Create a new session to manage the tombstone key's timeout independently.
 	if sid, err = e.createSession(ctx, e.tombTimeout); err != nil {
 		return
 	}
 
 	err = e.tombstoneTopic(ctx, node, topic, sid, exp.UTC())
-	return
-}
-
-func (e *ConsulEngine) RegisterTopic(ctx context.Context, node NodeInfo, topic string) (err error) {
-	var sid string
-	var now = time.Now()
-
-	if sid, err = e.session(node, now); err != nil {
-		return
-	}
-
-	return e.registerTopic(ctx, node, topic, sid)
-}
-
-func (e *ConsulEngine) UnregisterTopic(ctx context.Context, node NodeInfo, topic string) (err error) {
-	if err = e.unregisterTopic(ctx, node, topic); err != nil && consulErrorNotFound(err) {
-		err = nil
-	}
-	return
-}
-
-func (e *ConsulEngine) RegisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) (err error) {
-	var sid string
-	var now = time.Now()
-
-	if sid, err = e.session(node, now); err != nil {
-		return
-	}
-
-	if err = e.registerTopic(ctx, node, topic, sid); err != nil {
-		return
-	}
-
-	err = e.registerChannel(ctx, node, topic, channel, sid)
-	return
-}
-
-func (e *ConsulEngine) UnregisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) (err error) {
-	if err = e.unregisterChannel(ctx, node, topic, channel); err != nil && consulErrorNotFound(err) {
-		err = nil
-	}
 	return
 }
 
@@ -356,31 +204,6 @@ func (e *ConsulEngine) LookupInfo(ctx context.Context) (info EngineInfo, err err
 
 func (e *ConsulEngine) CheckHealth(ctx context.Context) error {
 	return e.get(ctx, "/v1/agent/self", nil)
-}
-
-func (e *ConsulEngine) session(node NodeInfo, now time.Time) (sid string, err error) {
-	key := httpBroadcastAddress(node)
-	e.mutex.RLock()
-	if e.nodes == nil {
-		err = io.ErrClosedPipe
-	}
-	n := e.nodes[key]
-	e.mutex.RUnlock()
-
-	if n == nil {
-		err = errMissingNode
-		return
-	}
-
-	n.mutex.RLock()
-	if now.After(n.expTime) {
-		err = errMissingNode
-	} else {
-		sid = n.sid
-		err = n.err
-	}
-	n.mutex.RUnlock()
-	return
 }
 
 func (e *ConsulEngine) createSession(ctx context.Context, ttl time.Duration) (sid string, err error) {
@@ -605,6 +428,52 @@ func (e *ConsulEngine) do(ctx context.Context, method string, url string, send i
 	return
 }
 
+type ConsulNode struct {
+	eng  *ConsulEngine
+	sid  string
+	info NodeInfo
+}
+
+func newConsulNode(eng *ConsulEngine, sid string, info NodeInfo) *ConsulNode {
+	return &ConsulNode{
+		eng:  eng,
+		sid:  sid,
+		info: info,
+	}
+}
+
+func (n *ConsulNode) String() string {
+	return n.info.String()
+}
+
+func (n *ConsulNode) Info() NodeInfo {
+	return n.info
+}
+
+func (n *ConsulNode) Ping(ctx context.Context) error {
+	return n.eng.renewSession(ctx, n.sid)
+}
+
+func (n *ConsulNode) Unregister(ctx context.Context) error {
+	return n.eng.destroySession(ctx, n.sid)
+}
+
+func (n *ConsulNode) RegisterTopic(ctx context.Context, topic string) error {
+	return n.eng.registerTopic(ctx, n.info, topic, n.sid)
+}
+
+func (n *ConsulNode) UnregisterTopic(ctx context.Context, topic string) error {
+	return n.eng.unregisterTopic(ctx, n.info, topic)
+}
+
+func (n *ConsulNode) RegisterChannel(ctx context.Context, topic string, channel string) error {
+	return n.eng.registerChannel(ctx, n.info, topic, channel, n.sid)
+}
+
+func (n *ConsulNode) UnregisterChannel(ctx context.Context, topic string, channel string) error {
+	return n.eng.unregisterChannel(ctx, n.info, topic, channel)
+}
+
 func consulNodeKey(node NodeInfo) string {
 	return path.Join("nodes", httpBroadcastAddress(node))
 }
@@ -648,15 +517,6 @@ type consulError struct {
 
 func (e consulError) Error() string {
 	return fmt.Sprintf("%s %s: %s", e.method, e.url, e.reason)
-}
-
-// This structure is used for internal representation of the nodes registered
-// with the consul engine.
-type consulNode struct {
-	mutex   sync.RWMutex
-	sid     string
-	err     error
-	expTime time.Time
 }
 
 // This structure is what the consul engine stores as value in the consul

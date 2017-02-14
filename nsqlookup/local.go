@@ -44,7 +44,7 @@ type LocalEngine struct {
 
 	// mutable state
 	mutex sync.RWMutex
-	nodes map[string]*localNode
+	nodes map[string]*LocalNode
 }
 
 // NewLocalEngine creates and returns an instance of LocalEngine configured with
@@ -65,7 +65,7 @@ func NewLocalEngine(config LocalConfig) *LocalEngine {
 		done: make(chan struct{}),
 		join: make(chan struct{}),
 
-		nodes: make(map[string]*localNode),
+		nodes: make(map[string]*LocalNode),
 	}
 
 	go e.run()
@@ -78,76 +78,67 @@ func (e *LocalEngine) Close() error {
 	return nil
 }
 
-func (e *LocalEngine) RegisterNode(ctx context.Context, node NodeInfo) error {
+func (e *LocalEngine) RegisterNode(ctx context.Context, node NodeInfo) (Node, error) {
 	now := time.Now()
 	exp := now.Add(e.nodeTimeout)
 	key := httpBroadcastAddress(node)
 
+	n := newLocalNode(e, node, exp)
 	e.mutex.Lock()
-	n := e.nodes[key]
+	e.nodes[key] = n
+	e.mutex.Unlock()
 
-	if n == nil {
-		n = newLocalNode(node, exp)
-		e.nodes[key] = n
-	} else {
-		n.expireAt(exp)
+	return n, nil
+}
+
+func (e *LocalEngine) unregisterNode(node *LocalNode) error {
+	key := httpBroadcastAddress(node.info)
+	e.mutex.Lock()
+	if e.nodes[key] == node {
+		delete(e.nodes, key)
+	}
+	e.mutex.Unlock()
+	return nil
+}
+
+func (e *LocalEngine) pingNode(node *LocalNode) (err error) {
+	key := httpBroadcastAddress(node.info)
+	now := time.Now()
+	exp := now.Add(e.nodeTimeout)
+	e.mutex.RLock()
+
+	if e.nodes[key] == node {
+		node.mutex.Lock()
+		if now.After(node.exptime) {
+			err = errExpiredNode
+		} else {
+			node.exptime = exp
+		}
+		node.mutex.Unlock()
 	}
 
-	e.mutex.Unlock()
-	return nil
-}
-
-func (e *LocalEngine) UnregisterNode(ctx context.Context, node NodeInfo) error {
-	key := httpBroadcastAddress(node)
-	e.mutex.Lock()
-	delete(e.nodes, key)
-	e.mutex.Unlock()
-	return nil
-}
-
-func (e *LocalEngine) PingNode(ctx context.Context, node NodeInfo) error {
-	_, err := e.get(node)
-	return err
+	e.mutex.RUnlock()
+	return
 }
 
 func (e *LocalEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic string) error {
-	n, err := e.get(node)
-	if n != nil {
-		n.tombstoneTopic(topic, time.Now().Add(e.tombTimeout))
-	}
-	return err
-}
+	now := time.Now()
+	key := httpBroadcastAddress(node)
 
-func (e *LocalEngine) RegisterTopic(ctx context.Context, node NodeInfo, topic string) error {
-	n, err := e.get(node)
-	if n != nil {
-		n.registerTopic(topic)
-	}
-	return err
-}
+	e.mutex.RLock()
+	n := e.nodes[key]
+	e.mutex.RUnlock()
 
-func (e *LocalEngine) UnregisterTopic(ctx context.Context, node NodeInfo, topic string) error {
-	n, err := e.get(node)
-	if n != nil {
-		n.unregisterTopic(topic)
+	if n == nil {
+		return errMissingNode
 	}
-	return err
-}
 
-func (e *LocalEngine) RegisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) error {
-	n, err := e.get(node)
-	if n != nil {
-		n.registerChannel(topic, channel)
+	if err := n.checkExpired(now); err != nil {
+		return err
 	}
-	return err
-}
 
-func (e *LocalEngine) UnregisterChannel(ctx context.Context, node NodeInfo, topic string, channel string) error {
-	n, err := e.get(node)
-	if n != nil {
-		n.unregisterChannel(topic, channel)
-	}
-	return err
+	n.tombstoneTopic(topic, now.Add(e.tombTimeout))
+	return nil
 }
 
 func (e *LocalEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo, err error) {
@@ -183,10 +174,13 @@ func (e *LocalEngine) LookupTopics(ctx context.Context) (topics []string, err er
 	}
 
 	e.mutex.RUnlock()
-	topics = make([]string, 0, len(set))
 
-	for topic := range set {
-		topics = append(topics, topic)
+	if len(set) != 0 {
+		topics = make([]string, 0, len(set))
+
+		for topic := range set {
+			topics = append(topics, topic)
+		}
 	}
 
 	return
@@ -201,10 +195,13 @@ func (e *LocalEngine) LookupChannels(ctx context.Context, topic string) (channel
 	}
 
 	e.mutex.RUnlock()
-	channels = make([]string, 0, len(set))
 
-	for topic := range set {
-		channels = append(channels, topic)
+	if len(set) != 0 {
+		channels = make([]string, 0, len(set))
+
+		for topic := range set {
+			channels = append(channels, topic)
+		}
 	}
 
 	return
@@ -217,24 +214,6 @@ func (e *LocalEngine) LookupInfo(ctx context.Context) (info EngineInfo, err erro
 }
 
 func (e *LocalEngine) CheckHealth(ctx context.Context) (err error) {
-	return
-}
-
-func (e *LocalEngine) get(node NodeInfo) (n *localNode, err error) {
-	now := time.Now()
-	exp := now.Add(e.nodeTimeout)
-	key := httpBroadcastAddress(node)
-
-	e.mutex.RLock()
-	n = e.nodes[key]
-	e.mutex.RUnlock()
-
-	if n == nil {
-		err = errMissingNode
-	} else {
-		n.expireAt(exp)
-	}
-
 	return
 }
 
@@ -287,9 +266,10 @@ func (e *LocalEngine) removeExpiredTombs(now time.Time) {
 	e.mutex.RUnlock()
 }
 
-type localNode struct {
+type LocalNode struct {
 	// immutable state
-	info NodeInfo
+	engine *LocalEngine
+	info   NodeInfo
 
 	// mutable state
 	mutex   sync.RWMutex
@@ -298,8 +278,9 @@ type localNode struct {
 	tombs   map[string]time.Time
 }
 
-func newLocalNode(info NodeInfo, exp time.Time) *localNode {
-	return &localNode{
+func newLocalNode(engine *LocalEngine, info NodeInfo, exp time.Time) *LocalNode {
+	return &LocalNode{
+		engine:  engine,
 		info:    info,
 		exptime: exp,
 		topics:  make(map[string]*localTopic),
@@ -307,7 +288,67 @@ func newLocalNode(info NodeInfo, exp time.Time) *localNode {
 	}
 }
 
-func (n *localNode) registerTopic(topic string) {
+func (n *LocalNode) String() string {
+	return n.info.String()
+}
+
+func (n *LocalNode) Info() NodeInfo {
+	return n.info
+}
+
+func (n *LocalNode) Ping(ctx context.Context) error {
+	return n.engine.pingNode(n)
+}
+
+func (n *LocalNode) Unregister(ctx context.Context) error {
+	return n.engine.unregisterNode(n)
+}
+
+func (n *LocalNode) RegisterTopic(ctx context.Context, topic string) error {
+	if err := n.checkExpired(time.Now()); err != nil {
+		return err
+	}
+	n.registerTopic(topic)
+	return nil
+}
+
+func (n *LocalNode) UnregisterTopic(ctx context.Context, topic string) error {
+	if err := n.checkExpired(time.Now()); err != nil {
+		return err
+	}
+	n.unregisterTopic(topic)
+	return nil
+}
+
+func (n *LocalNode) RegisterChannel(ctx context.Context, topic string, channel string) error {
+	if err := n.checkExpired(time.Now()); err != nil {
+		return err
+	}
+	n.registerChannel(topic, channel)
+	return nil
+}
+
+func (n *LocalNode) UnregisterChannel(ctx context.Context, topic string, channel string) error {
+	if err := n.checkExpired(time.Now()); err != nil {
+		return err
+	}
+	n.unregisterChannel(topic, channel)
+	return nil
+}
+
+func (n *LocalNode) checkExpired(now time.Time) error {
+	n.mutex.RLock()
+	expired := now.After(n.exptime)
+	n.mutex.RUnlock()
+
+	if expired {
+		return errExpiredNode
+	}
+
+	return nil
+}
+
+func (n *LocalNode) registerTopic(topic string) {
 	n.mutex.Lock()
 
 	if _, ok := n.topics[topic]; !ok {
@@ -317,19 +358,19 @@ func (n *localNode) registerTopic(topic string) {
 	n.mutex.Unlock()
 }
 
-func (n *localNode) unregisterTopic(topic string) {
+func (n *LocalNode) unregisterTopic(topic string) {
 	n.mutex.Lock()
 	delete(n.topics, topic)
 	n.mutex.Unlock()
 }
 
-func (n *localNode) tombstoneTopic(topic string, exp time.Time) {
+func (n *LocalNode) tombstoneTopic(topic string, exp time.Time) {
 	n.mutex.Lock()
 	n.tombs[topic] = exp
 	n.mutex.Unlock()
 }
 
-func (n *localNode) lookupTopics(topics map[string]bool) {
+func (n *LocalNode) lookupTopics(topics map[string]bool) {
 	n.mutex.RLock()
 
 	for topic := range n.topics {
@@ -339,7 +380,7 @@ func (n *localNode) lookupTopics(topics map[string]bool) {
 	n.mutex.RUnlock()
 }
 
-func (n *localNode) registerChannel(topic string, channel string) {
+func (n *LocalNode) registerChannel(topic string, channel string) {
 	n.mutex.RLock()
 	t, ok := n.topics[topic]
 	n.mutex.RUnlock()
@@ -354,7 +395,7 @@ func (n *localNode) registerChannel(topic string, channel string) {
 	t.registerChannel(channel)
 }
 
-func (n *localNode) unregisterChannel(topic string, channel string) {
+func (n *LocalNode) unregisterChannel(topic string, channel string) {
 	n.mutex.RLock()
 
 	if t, ok := n.topics[topic]; ok {
@@ -364,7 +405,7 @@ func (n *localNode) unregisterChannel(topic string, channel string) {
 	n.mutex.RUnlock()
 }
 
-func (n *localNode) lookupChannels(topic string, channels map[string]bool) {
+func (n *LocalNode) lookupChannels(topic string, channels map[string]bool) {
 	n.mutex.RLock()
 
 	if _, skip := n.tombs[topic]; !skip {
@@ -376,7 +417,7 @@ func (n *localNode) lookupChannels(topic string, channels map[string]bool) {
 	n.mutex.RUnlock()
 }
 
-func (n *localNode) has(topic string) (ok bool) {
+func (n *LocalNode) has(topic string) (ok bool) {
 	n.mutex.RLock()
 
 	if _, skip := n.tombs[topic]; !skip {
@@ -387,13 +428,7 @@ func (n *localNode) has(topic string) (ok bool) {
 	return
 }
 
-func (n *localNode) expireAt(exp time.Time) {
-	n.mutex.Lock()
-	n.exptime = exp
-	n.mutex.Unlock()
-}
-
-func (n *localNode) removeExpiredTombs(now time.Time) {
+func (n *LocalNode) removeExpiredTombs(now time.Time) {
 	n.mutex.Lock()
 
 	for topic, exptime := range n.tombs {

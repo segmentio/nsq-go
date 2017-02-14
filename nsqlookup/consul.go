@@ -443,7 +443,7 @@ func newConsulNode(eng *ConsulEngine, sid string, info NodeInfo) *ConsulNode {
 }
 
 func (n *ConsulNode) String() string {
-	return n.info.String()
+	return n.info.String() + "/" + n.sid
 }
 
 func (n *ConsulNode) Info() NodeInfo {

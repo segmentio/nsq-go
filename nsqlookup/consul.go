@@ -95,7 +95,7 @@ func (e *ConsulEngine) Close() (err error) {
 func (e *ConsulEngine) RegisterNode(ctx context.Context, node NodeInfo) (n Node, err error) {
 	var sid string
 
-	if sid, err = e.createSession(ctx, e.nodeTimeout); err != nil {
+	if sid, err = e.createSession(ctx, "nsqlookup.node:"+node.Hostname, e.nodeTimeout); err != nil {
 		return
 	}
 
@@ -113,7 +113,7 @@ func (e *ConsulEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic 
 	var exp = now.Add(e.tombTimeout)
 
 	// Create a new session to manage the tombstone key's timeout independently.
-	if sid, err = e.createSession(ctx, e.tombTimeout); err != nil {
+	if sid, err = e.createSession(ctx, "nsqlookup.tombstone:"+topic, e.tombTimeout); err != nil {
 		return
 	}
 
@@ -206,7 +206,7 @@ func (e *ConsulEngine) CheckHealth(ctx context.Context) error {
 	return e.get(ctx, "/v1/agent/self", nil)
 }
 
-func (e *ConsulEngine) createSession(ctx context.Context, ttl time.Duration) (sid string, err error) {
+func (e *ConsulEngine) createSession(ctx context.Context, name string, ttl time.Duration) (sid string, err error) {
 	const minTTL = time.Second * 10
 	const maxTTL = time.Second * 86400
 
@@ -225,7 +225,7 @@ func (e *ConsulEngine) createSession(ctx context.Context, ttl time.Duration) (si
 		TTL       string
 	}{
 		LockDelay: "0s",
-		Name:      "nsqlookupd consul engine",
+		Name:      name,
 		Behavior:  "delete",
 		TTL:       strconv.Itoa(int(ttl.Seconds())) + "s",
 	}, &session); err != nil {

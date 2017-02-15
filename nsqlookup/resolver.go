@@ -144,7 +144,11 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	switch res.StatusCode {
+	case http.StatusOK:
+	case http.StatusNotFound:
+		return
+	default:
 		err = fmt.Errorf("error looking up %s on consul agent at %s: %d %s", service, address, res.StatusCode, res.Status)
 		return
 	}

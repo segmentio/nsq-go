@@ -17,11 +17,27 @@ type Resolver interface {
 	Resolve(ctx context.Context) ([]string, error)
 }
 
+// ResolverFunc makes it possible to use regular function types as resolvers.
+type ResolverFunc func(ctx context.Context) ([]string, error)
+
+// Resolve satisfies the Resolver interface.
+func (f ResolverFunc) Resolve(ctx context.Context) ([]string, error) {
+	return f(ctx)
+}
+
 // Servers is the implementation of a Resolver that always returns the same list
 // of servers.
 type Servers []string
 
+// Resolve satisfies the Resolver interface.
 func (r Servers) Resolve(ctx context.Context) ([]string, error) {
+	if ctx != nil {
+		select {
+		default:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	return r.copy(), nil
 }
 
@@ -47,8 +63,8 @@ type CachedResolver struct {
 
 // Resolve statisfies the Resolver interface.
 func (r *CachedResolver) Resolve(ctx context.Context) (res []string, err error) {
-	now := time.Now()
-	ok := false
+	var now = time.Now()
+	var ok bool
 
 	if res, err, ok = r.get(now); ok {
 		return
@@ -76,13 +92,13 @@ func (r *CachedResolver) Resolve(ctx context.Context) (res []string, err error) 
 }
 
 func (r *CachedResolver) get(now time.Time) (res []string, err error, ok bool) {
-	defer r.mutex.RUnlock()
 	r.mutex.RLock()
 
 	if now.Before(r.exptime) {
 		res, err, ok = r.servers.copy(), r.error, true
 	}
 
+	r.mutex.RUnlock()
 	return
 }
 

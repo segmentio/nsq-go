@@ -43,6 +43,12 @@ func testEngine(t *testing.T, do func(context.Context, *testing.T, Engine)) {
 				})
 			},
 		},
+		{
+			Type: "proxy",
+			New: func(Namespace string) Engine {
+				return newTestProxy(nodeTimeout, tombTimeout)
+			},
+		},
 	}
 
 	for _, test := range tests {

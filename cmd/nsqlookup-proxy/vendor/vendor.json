@@ -3,6 +3,12 @@
 	"ignore": "test",
 	"package": [
 		{
+			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
+			"path": "github.com/pkg/errors",
+			"revision": "248dadf4e9068a0b3e79f02ed0a610d935de5302",
+			"revisionTime": "2016-10-29T09:36:37Z"
+		},
+		{
 			"checksumSHA1": "Vm8f+in2jTy87muSHVpBGrrJzIg=",
 			"path": "github.com/segmentio/conf",
 			"revision": "62d76ed8bedb74ed39c9deab634523436a9f141a",
@@ -15,8 +21,20 @@
 			"revisionTime": "2017-01-25T03:30:28Z"
 		},
 		{
+			"checksumSHA1": "Re4UDXROgiT4pJ60NENd3CI1UIo=",
+			"path": "github.com/segmentio/events/ecslogs",
+			"revision": "b5f75b4fea2934b0da7e7e4c5e6f6cfaaf00b6c6",
+			"revisionTime": "2017-01-25T03:30:28Z"
+		},
+		{
 			"checksumSHA1": "6X+XlhkwJtApcalZtm076ERF/JY=",
 			"path": "github.com/segmentio/events/httpevents",
+			"revision": "b5f75b4fea2934b0da7e7e4c5e6f6cfaaf00b6c6",
+			"revisionTime": "2017-01-25T03:30:28Z"
+		},
+		{
+			"checksumSHA1": "9HgOPkS7prKczQ/FUMmBLPFAQ/4=",
+			"path": "github.com/segmentio/events/text",
 			"revision": "b5f75b4fea2934b0da7e7e4c5e6f6cfaaf00b6c6",
 			"revisionTime": "2017-01-25T03:30:28Z"
 		},

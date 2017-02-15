@@ -53,7 +53,6 @@ func (h HTTPHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		h.EngineTimeout = DefaultEngineTimeout
 	}
 
-	ctx, _ := context.WithTimeout(req.Context(), h.EngineTimeout)
 	req = req.WithContext(ctx)
 
 	switch req.URL.Path {
@@ -452,11 +451,6 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 		ctx = context.Background()
 	}
 
-	engineContext := func(ctx context.Context) context.Context {
-		ectx, _ := context.WithTimeout(ctx, h.EngineTimeout)
-		return ectx
-	}
-
 	host, port, _ := net.SplitHostPort(conn.LocalAddr().String())
 
 	if h.Info.TcpPort == 0 {
@@ -472,7 +466,7 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 	}
 
 	if len(h.Info.Version) == 0 {
-		info, _ := h.Engine.LookupInfo(engineContext(ctx))
+		info, _ := h.Engine.LookupInfo(ctx)
 		h.Info.Version = info.Version
 	}
 
@@ -484,7 +478,7 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 
 	defer func() {
 		if node != nil {
-			err := node.Unregister(engineContext(ctx))
+			err := node.Unregister(ctx)
 			log.Printf("UNREGISTER node = %s, err = %s", node, err)
 		}
 	}()
@@ -508,16 +502,16 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 
 		switch c := cmd.(type) {
 		case Ping:
-			res, err = h.ping(engineContext(ctx), node)
+			res, err = h.ping(ctx, node)
 
 		case Identify:
-			node, res, err = h.identify(engineContext(ctx), node, c.Info, conn)
+			node, res, err = h.identify(ctx, node, c.Info, conn)
 
 		case Register:
-			res, err = h.register(engineContext(ctx), node, c.Topic, c.Channel)
+			res, err = h.register(ctx, node, c.Topic, c.Channel)
 
 		case Unregister:
-			node, res, err = h.unregister(engineContext(ctx), node, c.Topic, c.Channel)
+			node, res, err = h.unregister(ctx, node, c.Topic, c.Channel)
 
 		default:
 			res = makeErrInvalid("unknown command")
@@ -549,6 +543,9 @@ func (h TCPHandler) identify(ctx context.Context, node Node, info NodeInfo, conn
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, h.EngineTimeout)
+	defer cancel()
+
 	if len(info.RemoteAddress) == 0 {
 		info.RemoteAddress = conn.RemoteAddr().String()
 	}
@@ -563,6 +560,8 @@ func (h TCPHandler) identify(ctx context.Context, node Node, info NodeInfo, conn
 
 func (h TCPHandler) ping(ctx context.Context, node Node) (res OK, err error) {
 	if node != nil { // ping may arrive before identify
+		ctx, cancel := context.WithTimeout(ctx, h.EngineTimeout)
+		defer cancel()
 		err = node.Ping(ctx)
 		log.Printf("PING node = %s, err = %v", node, err)
 	}
@@ -574,6 +573,9 @@ func (h TCPHandler) register(ctx context.Context, node Node, topic string, chann
 		err = errClientMustIdentify
 		return
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, h.EngineTimeout)
+	defer cancel()
 
 	switch {
 	case len(channel) != 0:
@@ -595,6 +597,9 @@ func (h TCPHandler) unregister(ctx context.Context, node Node, topic string, cha
 		err = errClientMustIdentify
 		return
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, h.EngineTimeout)
+	defer cancel()
 
 	switch {
 	case len(channel) != 0:

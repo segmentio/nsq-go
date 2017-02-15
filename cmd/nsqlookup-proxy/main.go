@@ -7,7 +7,9 @@ import (
 
 	"github.com/segmentio/conf"
 	"github.com/segmentio/events"
+	_ "github.com/segmentio/events/ecslogs"
 	"github.com/segmentio/events/httpevents"
+	_ "github.com/segmentio/events/text"
 	"github.com/segmentio/nsq-go/nsqlookup"
 )
 
@@ -55,6 +57,7 @@ func main() {
 		handler = httpevents.NewHandler(nil, handler)
 	}
 
+	events.Log("starting nsqlookup-proxy listening on %{address}s", config.Bind)
 	http.ListenAndServe(config.Bind, handler)
 }
 

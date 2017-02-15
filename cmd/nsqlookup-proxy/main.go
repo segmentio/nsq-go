@@ -24,7 +24,7 @@ func main() {
 	events.DefaultLogger.EnableDebug = config.Debug
 	events.DefaultLogger.EnableSource = config.Debug
 
-	var resolvers []Resolver
+	var resolvers []nsqlookup.Resolver
 	for _, addr := range args {
 		switch {
 		case strings.HasPrefix(addr, "consul://"):
@@ -34,14 +34,14 @@ func main() {
 				Service: service,
 			})
 		default:
-			resolvers = append(resolvers, Servers{addr})
+			resolvers = append(resolvers, nsqlookup.Servers{addr})
 		}
 	}
 
 	var proxy = &nsqlookup.ProxyEngine{
 		Transport: http.DefaultTransport,
 		Resolver: &nsqlookup.CachedResolver{
-			Resolver: MultiResolver(resolvers...),
+			Resolver: nsqlookup.MultiResolver(resolvers...),
 			Timeout:  10 * time.Second,
 		},
 	}
@@ -58,7 +58,7 @@ func main() {
 	http.ListenAndServe(config.Bind, handler)
 }
 
-func splitAddressService(addr string) (address string, service string) {
+func splitConsulAddressService(addr string) (address string, service string) {
 	addr = addr[9:] // strip leading "consul://"
 
 	if off := strings.IndexByte(addr, '/'); off >= 0 {

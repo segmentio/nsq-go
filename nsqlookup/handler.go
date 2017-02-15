@@ -53,8 +53,6 @@ func (h HTTPHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		h.EngineTimeout = DefaultEngineTimeout
 	}
 
-	req = req.WithContext(ctx)
-
 	switch req.URL.Path {
 	case "/lookup":
 		h.serveLookup(res, req)

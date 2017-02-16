@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -127,6 +128,10 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 
 	if len(service) == 0 {
 		service = "nsqlookupd"
+	}
+
+	if strings.Index(address, "://") < 0 {
+		address = "http://" + address
 	}
 
 	if req, err = http.NewRequest("GET", address+"/v1/catalog/service/"+service, nil); err != nil {

@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // A ProxyEngine implements the Engine interface an is intended to be used as a
@@ -304,6 +305,10 @@ func (e *ProxyEngine) do(ctx context.Context, method string, url string, send in
 			return
 		}
 		r = bytes.NewReader(b)
+	}
+
+	if strings.Index(url, "://") < 0 {
+		url = "http://" + url
 	}
 
 	if req, err = http.NewRequest(method, url, r); err != nil {

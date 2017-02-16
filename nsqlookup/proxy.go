@@ -91,7 +91,9 @@ func (p *ProxyEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo, err er
 				set[httpBroadcastAddress(n)] = n
 			}
 		case e := <-errors:
-			err = appendError(err, e)
+			if e != errNotFound {
+				err = appendError(err, e)
+			}
 		}
 	}
 
@@ -137,7 +139,9 @@ func (p *ProxyEngine) LookupProducers(ctx context.Context, topic string) (nodes 
 				set[httpBroadcastAddress(n)] = n
 			}
 		case e := <-errors:
-			err = appendError(err, e)
+			if e != errNotFound {
+				err = appendError(err, e)
+			}
 		}
 	}
 
@@ -183,7 +187,9 @@ func (p *ProxyEngine) LookupTopics(ctx context.Context) (topics []string, err er
 				set[c] = true
 			}
 		case e := <-errors:
-			err = appendError(err, e)
+			if e != errNotFound {
+				err = appendError(err, e)
+			}
 		}
 	}
 
@@ -229,7 +235,9 @@ func (p *ProxyEngine) LookupChannels(ctx context.Context, topic string) (channel
 				set[c] = true
 			}
 		case e := <-errors:
-			err = appendError(err, e)
+			if e != errNotFound {
+				err = appendError(err, e)
+			}
 		}
 	}
 
@@ -327,7 +335,13 @@ func (e *ProxyEngine) do(ctx context.Context, method string, url string, send in
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	switch res.StatusCode {
+	case http.StatusOK:
+	case http.StatusNotFound:
+		io.Copy(ioutil.Discard, res.Body)
+		err = errNotFound
+		return
+	default:
 		b := &bytes.Buffer{}
 		io.Copy(b, res.Body)
 		err = &proxyError{
@@ -340,14 +354,12 @@ func (e *ProxyEngine) do(ctx context.Context, method string, url string, send in
 		return
 	}
 
-	if recv != nil {
-		if err = json.NewDecoder(res.Body).Decode(recv); err != nil {
-			return
-		}
-	} else {
+	if recv == nil {
 		io.Copy(ioutil.Discard, res.Body)
+		return
 	}
 
+	err = json.NewDecoder(res.Body).Decode(recv)
 	return
 }
 
@@ -369,5 +381,6 @@ func (e *proxyError) Error() string {
 }
 
 var (
+	errNotFound    = errors.New("not found")
 	errUnsupported = errors.New("unsupported")
 )

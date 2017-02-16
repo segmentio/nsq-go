@@ -109,7 +109,7 @@ func TestResolveCached(t *testing.T) {
 
 func TestResolveConsul(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != "/v1/catalog/nsqlookupd" {
+		if req.URL.Path != "/v1/catalog/service/nsqlookupd" {
 			t.Error("bad URL path:", req.URL.Path)
 		}
 		res.Header().Set("Content-Type", "application/json; charset=utf-8")

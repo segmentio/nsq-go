@@ -26,14 +26,21 @@ func main() {
 	events.DefaultLogger.EnableDebug = config.Debug
 	events.DefaultLogger.EnableSource = config.Debug
 
+	var transport http.RoundTripper = http.DefaultTransport
 	var resolvers []nsqlookup.Resolver
+
+	if config.Verbose {
+		transport = httpevents.NewTransport(nil, transport)
+	}
+
 	for _, addr := range args {
 		switch {
 		case strings.HasPrefix(addr, "consul://"):
 			address, service := splitConsulAddressService(addr)
 			resolvers = append(resolvers, &nsqlookup.ConsulResolver{
-				Address: address,
-				Service: service,
+				Address:   address,
+				Service:   service,
+				Transport: transport,
 			})
 		default:
 			resolvers = append(resolvers, nsqlookup.Servers{addr})
@@ -41,7 +48,7 @@ func main() {
 	}
 
 	var proxy = &nsqlookup.ProxyEngine{
-		Transport: http.DefaultTransport,
+		Transport: transport,
 		Resolver: &nsqlookup.CachedResolver{
 			Resolver: nsqlookup.MultiResolver(resolvers...),
 			Timeout:  10 * time.Second,
@@ -53,7 +60,6 @@ func main() {
 	}
 
 	if config.Verbose {
-		proxy.Transport = httpevents.NewTransport(nil, proxy.Transport)
 		handler = httpevents.NewHandler(nil, handler)
 	}
 

@@ -38,6 +38,48 @@ func (info NodeInfo) String() string {
 	return httpBroadcastAddress(info)
 }
 
+// The NodeInfo2 structure carries information about a node referenced by a
+// nsqlookup server.
+//
+// The type is very similar to NodeInfo, but adds a list of tombstones for a
+// node, and a list of topics. The tombstones list carries booleans that tell
+// whether the topic at the matching index has been tombstoned on the node.
+type NodeInfo2 struct {
+	// RemoteAddress is the address that the node connected from.
+	RemoteAddress string `json:"remote_address"`
+
+	// Hostname of the nsqd node.
+	Hostname string `json:"hostname"`
+
+	// BroadcastAddress is the address advertized by the nsqd node.
+	BroadcastAddress string `json:"broadcast_address"`
+
+	// TcpPort is the port on which the nsqd node is listening for incoming TCP
+	// connections.
+	TcpPort int `json:"tcp_port"`
+
+	// HttpPort is the port on which the nsqd node accepts HTTP requests.
+	HttpPort int `json:"http_port"`
+
+	// Version represents the version of nsqd ran by the node.
+	Version string `json:"version"`
+
+	// Tombstones has items set to true if the topic at the matching index has
+	// been tomstoned.
+	Tombstones []bool `json:"tombstones"`
+
+	// Topics is the list of topic hosted by the node.
+	Topics []string `json:"topics"`
+}
+
+// String returns a human-readable representation of the node info.
+func (info NodeInfo2) String() string {
+	if len(info.Hostname) != 0 {
+		return info.Hostname
+	}
+	return makeBroadcastAddress(info.BroadcastAddress, info.HttpPort)
+}
+
 // The EngineInfo structure carries information about a nsqlookup engine.
 type EngineInfo struct {
 	// Type of the engine.
@@ -68,7 +110,7 @@ type Engine interface {
 	TombstoneTopic(ctx context.Context, node NodeInfo, topic string) error
 
 	// LookupNodes must return a list of of all nodes registered on the engine.
-	LookupNodes(ctx context.Context) ([]NodeInfo, error)
+	LookupNodes(ctx context.Context) ([]NodeInfo2, error)
 
 	// LookupProducers must return a list of all nodes for which topic has been
 	// registered on the engine and were not tombstoned.
@@ -138,9 +180,33 @@ func (n byNode) Less(i int, j int) bool {
 		(n1.BroadcastAddress == n2.BroadcastAddress && n1.TcpPort < n2.TcpPort)
 }
 
+type byNode2 []NodeInfo2
+
+func (n byNode2) Len() int {
+	return len(n)
+}
+
+func (n byNode2) Swap(i int, j int) {
+	n[i], n[j] = n[j], n[i]
+}
+
+func (n byNode2) Less(i int, j int) bool {
+	n1 := &n[i]
+	n2 := &n[j]
+	return (n1.BroadcastAddress < n2.BroadcastAddress) ||
+		(n1.BroadcastAddress == n2.BroadcastAddress && n1.TcpPort < n2.TcpPort)
+}
+
 func nonNilNodes(n []NodeInfo) []NodeInfo {
 	if n == nil {
 		n = []NodeInfo{}
+	}
+	return n
+}
+
+func nonNilNodes2(n []NodeInfo2) []NodeInfo2 {
+	if n == nil {
+		n = []NodeInfo2{}
 	}
 	return n
 }
@@ -154,6 +220,11 @@ func nonNilStrings(s []string) []string {
 
 func sortedNodes(n []NodeInfo) []NodeInfo {
 	sort.Sort(byNode(n))
+	return n
+}
+
+func sortedNodes2(n []NodeInfo2) []NodeInfo2 {
+	sort.Sort(byNode2(n))
 	return n
 }
 

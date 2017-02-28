@@ -121,8 +121,29 @@ func (e *ConsulEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic 
 	return
 }
 
-func (e *ConsulEngine) LookupNodes(ctx context.Context) ([]NodeInfo, error) {
-	return e.getNodes(ctx, "nodes", time.Now())
+func (e *ConsulEngine) LookupNodes(ctx context.Context) ([]NodeInfo2, error) {
+	nodes1, err := e.getNodes(ctx, "nodes", time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	nodes2 := make([]NodeInfo2, 0, len(nodes1))
+
+	for _, n := range nodes1 {
+		nodes2 = append(nodes2, NodeInfo2{
+			RemoteAddress:    n.RemoteAddress,
+			Hostname:         n.Hostname,
+			BroadcastAddress: n.BroadcastAddress,
+			TcpPort:          n.TcpPort,
+			HttpPort:         n.HttpPort,
+			Version:          n.Version,
+			// TODO:
+			//Tombstones: ...,
+			//Topics: ...,
+		})
+	}
+
+	return nodes2, nil
 }
 
 func (e *ConsulEngine) LookupProducers(ctx context.Context, topic string) (producers []NodeInfo, err error) {

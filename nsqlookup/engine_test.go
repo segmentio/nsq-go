@@ -97,7 +97,7 @@ func TestEngineRegisterNode(t *testing.T) {
 		t.Run("lookup-nodes", func(t *testing.T) {
 			nodes2, err := e.LookupNodes(c)
 			checkNilError(t, err)
-			checkEqualNodes(t, nodes1, nodes2)
+			checkEqualNodes2(t, nodes1, nodes2)
 		})
 	})
 }
@@ -129,7 +129,7 @@ func TestEngineUnregisterNode(t *testing.T) {
 		t.Run("lookup-nodes", func(t *testing.T) {
 			nodes2, err := e.LookupNodes(c)
 			checkNilError(t, err)
-			checkEqualNodes(t, nodes1[1:], nodes2)
+			checkEqualNodes2(t, nodes1[1:], nodes2)
 		})
 
 		t.Run("lookup-topics", func(t *testing.T) {
@@ -489,6 +489,24 @@ func checkEqualNodes(t *testing.T, n1 []NodeInfo, n2 []NodeInfo) {
 		t.Logf(">>> %#v", n2)
 		t.Fatal("bad nodes")
 	}
+}
+
+func checkEqualNodes2(t *testing.T, n1 []NodeInfo, n2 []NodeInfo2) {
+	n3 := make([]NodeInfo, 0, len(n2))
+
+	for _, n := range n2 {
+		// Hack... don't compare the Tombstones and Topics fields.
+		n3 = append(n3, NodeInfo{
+			RemoteAddress:    n.RemoteAddress,
+			Hostname:         n.Hostname,
+			BroadcastAddress: n.BroadcastAddress,
+			TcpPort:          n.TcpPort,
+			HttpPort:         n.HttpPort,
+			Version:          n.Version,
+		})
+	}
+
+	checkEqualNodes(t, n1, n3)
 }
 
 func checkEqualTopics(t *testing.T, t1 []string, t2 []string) {

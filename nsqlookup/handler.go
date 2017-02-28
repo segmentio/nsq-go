@@ -100,6 +100,12 @@ func (h HTTPHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	channels, err := h.Engine.LookupChannels(req.Context(), topic)
+	if err != nil {
+		h.sendInternalServerError(res, err)
+		return
+	}
+
 	nodes, err := h.Engine.LookupProducers(req.Context(), topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
@@ -107,8 +113,12 @@ func (h HTTPHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 	}
 
 	h.sendResponse(res, req, 200, "OK", struct {
+		Channels  []string   `json:"channels"`
 		Producers []NodeInfo `json:"producers"`
-	}{nonNilNodes(sortedNodes(nodes))})
+	}{
+		Channels:  nonNilStrings(sortedStrings(channels)),
+		Producers: nonNilNodes(sortedNodes(nodes)),
+	})
 }
 
 func (h HTTPHandler) serveTopics(res http.ResponseWriter, req *http.Request) {
@@ -166,8 +176,8 @@ func (h HTTPHandler) serveNodes(res http.ResponseWriter, req *http.Request) {
 	}
 
 	h.sendResponse(res, req, 200, "OK", struct {
-		Producers []NodeInfo `json:"producers"`
-	}{nonNilNodes(sortedNodes(nodes))})
+		Producers []NodeInfo2 `json:"producers"`
+	}{nonNilNodes2(sortedNodes2(nodes))})
 }
 
 func (h HTTPHandler) servePing(res http.ResponseWriter, req *http.Request) {

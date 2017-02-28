@@ -5,122 +5,128 @@
 		{
 			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
 			"path": "github.com/pkg/errors",
-			"revision": "248dadf4e9068a0b3e79f02ed0a610d935de5302",
-			"revisionTime": "2016-10-29T09:36:37Z"
+			"revision": "bfd5150e4e41705ded2129ec33379de1cb90b513",
+			"revisionTime": "2017-02-27T22:00:37Z"
 		},
 		{
-			"checksumSHA1": "FnUUAZlsmc1urRzg4xlFrEexGcI=",
+			"checksumSHA1": "Vm8f+in2jTy87muSHVpBGrrJzIg=",
 			"path": "github.com/segmentio/conf",
-			"revision": "7efb338ce5edcc8a043c0424414eeb85c0f97935",
-			"revisionTime": "2017-01-07T20:55:19Z"
+			"revision": "62d76ed8bedb74ed39c9deab634523436a9f141a",
+			"revisionTime": "2017-01-24T20:41:40Z"
 		},
 		{
-			"checksumSHA1": "o9GuXPG9LtA5DeQQqZiCJoArBeE=",
+			"checksumSHA1": "sDeNto3iXYv5bGcoQ25pAVbFDAQ=",
 			"path": "github.com/segmentio/events",
-			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
-			"revisionTime": "2017-01-09T19:59:48Z"
+			"revision": "590a3ab3429a24d98facc92d3b299226cd72fded",
+			"revisionTime": "2017-02-23T22:54:10Z"
 		},
 		{
-			"checksumSHA1": "y+9yTeBux9DAVaT8Hu1kqDuTSMs=",
+			"checksumSHA1": "Re4UDXROgiT4pJ60NENd3CI1UIo=",
 			"path": "github.com/segmentio/events/ecslogs",
-			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
-			"revisionTime": "2017-01-09T19:59:48Z"
+			"revision": "590a3ab3429a24d98facc92d3b299226cd72fded",
+			"revisionTime": "2017-02-23T22:54:10Z"
 		},
 		{
-			"checksumSHA1": "fCqiyZp4FgHEhGvbSvwQqdLo1yA=",
+			"checksumSHA1": "sA/osxmUEI1Najo3QuyfygXZaQc=",
 			"path": "github.com/segmentio/events/httpevents",
-			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
-			"revisionTime": "2017-01-09T19:59:48Z"
+			"revision": "590a3ab3429a24d98facc92d3b299226cd72fded",
+			"revisionTime": "2017-02-23T22:54:10Z"
 		},
 		{
 			"checksumSHA1": "q3ogho42gJX7ogw6MZ+PPmL5AAo=",
 			"path": "github.com/segmentio/events/log",
-			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
-			"revisionTime": "2017-01-09T19:59:48Z"
+			"revision": "590a3ab3429a24d98facc92d3b299226cd72fded",
+			"revisionTime": "2017-02-23T22:54:10Z"
 		},
 		{
-			"checksumSHA1": "iA/8mljcGhrBdQKMOu4gLwj1GJM=",
+			"checksumSHA1": "G55uXNlXYlZS3a7o/JnUG3xM/ZY=",
 			"path": "github.com/segmentio/events/netevents",
-			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
-			"revisionTime": "2017-01-09T19:59:48Z"
+			"revision": "590a3ab3429a24d98facc92d3b299226cd72fded",
+			"revisionTime": "2017-02-23T22:54:10Z"
 		},
 		{
-			"checksumSHA1": "RcUQ/pPTgHMbLn/7zGrB73UUmIs=",
+			"checksumSHA1": "9HgOPkS7prKczQ/FUMmBLPFAQ/4=",
 			"path": "github.com/segmentio/events/text",
-			"revision": "57af1e1e604d63b77454043ecefe220ff36c2297",
-			"revisionTime": "2017-01-09T19:59:48Z"
+			"revision": "590a3ab3429a24d98facc92d3b299226cd72fded",
+			"revisionTime": "2017-02-23T22:54:10Z"
 		},
 		{
-			"checksumSHA1": "3EkgEt+4v0UUqdr5dWkQzug9b7A=",
+			"checksumSHA1": "92+QFXAyalPeLFdtp5Ekv9YvrLM=",
 			"path": "github.com/segmentio/netx",
-			"revision": "151ec7010ce40e10cb527a1c581f66dfe44801f9",
-			"revisionTime": "2017-01-07T03:28:07Z"
+			"revision": "4e550d238c075a8249678258e5f51d0d0fb4849e",
+			"revisionTime": "2017-02-25T23:55:08Z"
 		},
 		{
-			"checksumSHA1": "8V1hshQRIil6YSOiRBfj7YX2BeY=",
+			"checksumSHA1": "G7POD82HtsfNbz6QJjKSN2iRT/I=",
 			"path": "github.com/segmentio/objconv",
-			"revision": "07e72d5ac00fa942ec00bc58fae3d11000c4834b",
-			"revisionTime": "2017-01-05T06:36:11Z"
+			"revision": "1f8db3c4952cfdc38e362eb445f2a0bd58378744",
+			"revisionTime": "2017-01-23T23:14:42Z"
 		},
 		{
-			"checksumSHA1": "1q10AsulvRAVqKpVsluqVn472ys=",
+			"checksumSHA1": "Pu4E2aWQJyPFHgo4Q6RIWM1+Jy4=",
+			"path": "github.com/segmentio/objconv/adapters",
+			"revision": "1f8db3c4952cfdc38e362eb445f2a0bd58378744",
+			"revisionTime": "2017-01-23T23:14:42Z"
+		},
+		{
+			"checksumSHA1": "FJ3HeQUl+axvksXSCaWdr1eZXxg=",
+			"path": "github.com/segmentio/objconv/adapters/net",
+			"revision": "1f8db3c4952cfdc38e362eb445f2a0bd58378744",
+			"revisionTime": "2017-01-23T23:14:42Z"
+		},
+		{
+			"checksumSHA1": "kHeiG2D+uCYr19RtttjjVMeWlC8=",
+			"path": "github.com/segmentio/objconv/adapters/net/mail",
+			"revision": "1f8db3c4952cfdc38e362eb445f2a0bd58378744",
+			"revisionTime": "2017-01-23T23:14:42Z"
+		},
+		{
+			"checksumSHA1": "0SWtkeaPCL4PEfh4ChGnU2Lj1D0=",
+			"path": "github.com/segmentio/objconv/adapters/net/url",
+			"revision": "1f8db3c4952cfdc38e362eb445f2a0bd58378744",
+			"revisionTime": "2017-01-23T23:14:42Z"
+		},
+		{
+			"checksumSHA1": "2G0P9oB18pTpZewEkxLNP7z3W9Q=",
 			"path": "github.com/segmentio/objconv/json",
-			"revision": "07e72d5ac00fa942ec00bc58fae3d11000c4834b",
-			"revisionTime": "2017-01-05T06:36:11Z"
+			"revision": "1f8db3c4952cfdc38e362eb445f2a0bd58378744",
+			"revisionTime": "2017-01-23T23:14:42Z"
 		},
 		{
-			"checksumSHA1": "KfuXQsU9bHl28VKGyHa+QObFRJU=",
+			"checksumSHA1": "lFvLKDL3asCptkdyDi6my97q2Hc=",
+			"path": "github.com/segmentio/objconv/objutil",
+			"revision": "1f8db3c4952cfdc38e362eb445f2a0bd58378744",
+			"revisionTime": "2017-01-23T23:14:42Z"
+		},
+		{
+			"checksumSHA1": "Glq98T5vpn/zFLoZPw/jjBvmpoI=",
 			"path": "github.com/segmentio/objconv/yaml",
-			"revision": "07e72d5ac00fa942ec00bc58fae3d11000c4834b",
-			"revisionTime": "2017-01-05T06:36:11Z"
+			"revision": "1f8db3c4952cfdc38e362eb445f2a0bd58378744",
+			"revisionTime": "2017-01-23T23:14:42Z"
 		},
 		{
-			"checksumSHA1": "CtTOFmNtVviRlfgoXeRS+IzTLrc=",
-			"path": "github.com/segmentio/stats",
-			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
-			"revisionTime": "2017-01-09T19:15:27Z"
-		},
-		{
-			"checksumSHA1": "aUcaBZ2pC4mqAOI4kB5P1HTuwW8=",
-			"path": "github.com/segmentio/stats/datadog",
-			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
-			"revisionTime": "2017-01-09T19:15:27Z"
-		},
-		{
-			"checksumSHA1": "2oS0jMh05BSDvhlzkKMFk4oF1+k=",
-			"path": "github.com/segmentio/stats/httpstats",
-			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
-			"revisionTime": "2017-01-09T19:15:27Z"
-		},
-		{
-			"checksumSHA1": "poEpVOWzVNefnfJMu+Z6QgzXueQ=",
-			"path": "github.com/segmentio/stats/iostats",
-			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
-			"revisionTime": "2017-01-09T19:15:27Z"
-		},
-		{
-			"checksumSHA1": "h4hgdxafdFPS8UOKOM4nXn6DtCU=",
-			"path": "github.com/segmentio/stats/netstats",
-			"revision": "78d4fd94e50412772d8761c88241a48d498bf57b",
-			"revisionTime": "2017-01-09T19:15:27Z"
-		},
-		{
-			"checksumSHA1": "SRoPd/V0DDXAPfjAuz+54OIKY7I=",
+			"checksumSHA1": "xiderUuvye8Kpn7yX3niiJg32bE=",
 			"path": "golang.org/x/crypto/ssh/terminal",
-			"revision": "c3b1d0d6d8690eaebe3064711b026770cc37efa3",
-			"revisionTime": "2017-01-07T14:41:52Z"
+			"revision": "453249f01cfeb54c3d549ddb75ff152ca243f9d8",
+			"revisionTime": "2017-02-08T20:51:15Z"
 		},
 		{
-			"checksumSHA1": "uTQtOqR0ePMMcvuvAIksiIZxhqU=",
+			"checksumSHA1": "oVd5OHIvNHR5bhUvnBMPLVjaL6E=",
 			"path": "golang.org/x/sys/unix",
-			"revision": "d75a52659825e75fff6158388dddc6a5b04f9ba5",
-			"revisionTime": "2016-12-14T18:38:57Z"
+			"revision": "e4594059fe4cde2daf423055a596c2cd1e6c9adf",
+			"revisionTime": "2017-02-23T22:36:15Z"
 		},
 		{
-			"checksumSHA1": "12GqsW8PiRPnezDDy0v4brZrndM=",
+			"checksumSHA1": "KSiX/PVkEX32Pv07aOSJfOzXWRM=",
+			"path": "gopkg.in/validator.v2",
+			"revision": "0a9835d809fb647a62611d30cb792e0b5dd65b11",
+			"revisionTime": "2016-08-24T14:25:09Z"
+		},
+		{
+			"checksumSHA1": "0KwOlQV1dNUh9X8t+5s7nX5bqfk=",
 			"path": "gopkg.in/yaml.v2",
-			"revision": "a5b47d31c556af34a302ce5d659e6fea44d90de0",
-			"revisionTime": "2016-09-28T15:37:09Z"
+			"revision": "a3f3340b5840cee44f372bddb5880fcbc419b46a",
+			"revisionTime": "2017-02-08T14:18:51Z"
 		}
 	],
 	"rootPath": "github.com/segmentio/nsq-go/cmd/nsqlookupd"

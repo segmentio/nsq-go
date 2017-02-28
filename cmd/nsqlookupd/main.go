@@ -19,9 +19,6 @@ import (
 	_ "github.com/segmentio/events/text"
 	"github.com/segmentio/netx"
 	"github.com/segmentio/nsq-go/nsqlookup"
-	"github.com/segmentio/stats/datadog"
-	"github.com/segmentio/stats/httpstats"
-	"github.com/segmentio/stats/netstats"
 )
 
 func main() {
@@ -35,7 +32,6 @@ func main() {
 		InactiveProducerTimeout time.Duration `conf:"inactive-producer-timeout"  help:"duration of time a producer will remain in the active list since its last ping"`
 		Verbose                 bool          `conf:"verbose"                    help:"enable verbose logging"`
 		Version                 bool          `conf:"version"                    help:"print version string"`
-		Dogstatsd               string        `conf:"dogstatsd"                  help:"address of a dogstatsd agent to send metrics to"`
 	}{
 		HTTPAddress:             net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: 4161},
 		TCPAddress:              net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: 4160},
@@ -46,13 +42,6 @@ func main() {
 
 	var args = conf.Load(&config)
 	var engine nsqlookup.Engine
-
-	if len(config.Dogstatsd) != 0 {
-		dd := datadog.NewClient(datadog.ClientConfig{
-			Address: config.Dogstatsd,
-		})
-		defer dd.Close()
-	}
 
 	if len(args) == 0 {
 		log.Print("using local nsqlookup engine")
@@ -68,7 +57,7 @@ func main() {
 			var transport http.RoundTripper = http.DefaultTransport
 
 			if config.Verbose {
-				transport = httpevents.NewTransport(nil, transport)
+				transport = httpevents.NewTransport(transport)
 			}
 
 			log.Print("using consul nsqlookup engine")
@@ -89,7 +78,7 @@ func main() {
 
 	errchan := make(chan error)
 	sigsend := make(chan os.Signal)
-	sigrecv := events.Signal(sigsend, nil)
+	sigrecv := events.Signal(sigsend)
 	signal.Notify(sigsend, syscall.SIGINT, syscall.SIGTERM)
 
 	go func(addr string) {
@@ -98,11 +87,11 @@ func main() {
 		}
 
 		if config.Verbose {
-			handler = httpevents.NewHandler(nil, handler)
+			handler = httpevents.NewHandler(handler)
 		}
 
 		log.Printf("starting http server on %s", addr)
-		errchan <- http.ListenAndServe(addr, httpstats.NewHandler(nil, handler))
+		errchan <- http.ListenAndServe(addr, handler)
 	}(config.HTTPAddress.String())
 
 	go func(addr string) {
@@ -115,11 +104,11 @@ func main() {
 		}
 
 		if config.Verbose {
-			handler = netevents.NewHandler(nil, handler)
+			handler = netevents.NewHandler(handler)
 		}
 
 		log.Printf("starting tcp server on %s", addr)
-		errchan <- netx.ListenAndServe(addr, netstats.NewHandler(nil, handler))
+		errchan <- netx.ListenAndServe(addr, handler)
 	}(config.TCPAddress.String())
 
 	select {

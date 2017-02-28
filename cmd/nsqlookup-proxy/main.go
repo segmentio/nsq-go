@@ -30,7 +30,7 @@ func main() {
 	var resolvers []nsqlookup.Resolver
 
 	if config.Verbose {
-		transport = httpevents.NewTransport(nil, transport)
+		transport = httpevents.NewTransport(transport)
 	}
 
 	for _, addr := range args {
@@ -60,7 +60,7 @@ func main() {
 	}
 
 	if config.Verbose {
-		handler = httpevents.NewHandler(nil, handler)
+		handler = httpevents.NewHandler(handler)
 	}
 
 	events.Log("starting nsqlookup-proxy listening on %{address}s", config.Bind)

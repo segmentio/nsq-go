@@ -141,11 +141,37 @@ func (e *LocalEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic s
 	return nil
 }
 
-func (e *LocalEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo, err error) {
+func (e *LocalEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo2, err error) {
+	now := time.Now()
 	e.mutex.RLock()
+	nodes = make([]NodeInfo2, 0, len(e.nodes))
 
 	for _, node := range e.nodes {
-		nodes = append(nodes, node.info)
+		node.mutex.RLock()
+		tombstones := make([]bool, 0, len(node.topics))
+		topics := make([]string, 0, len(node.topics))
+
+		for topic := range node.topics {
+			topics = append(topics, topic)
+		}
+		topics = sortedStrings(topics)
+
+		for _, topic := range topics {
+			tombstones = append(tombstones, node.tombs[topic].After(now))
+		}
+
+		nodes = append(nodes, NodeInfo2{
+			RemoteAddress:    node.info.RemoteAddress,
+			Hostname:         node.info.Hostname,
+			BroadcastAddress: node.info.BroadcastAddress,
+			TcpPort:          node.info.TcpPort,
+			HttpPort:         node.info.HttpPort,
+			Version:          node.info.Version,
+			Tombstones:       tombstones,
+			Topics:           topics,
+		})
+
+		node.mutex.RUnlock()
 	}
 
 	e.mutex.RUnlock()

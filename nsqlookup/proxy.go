@@ -60,20 +60,20 @@ func (p *ProxyEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic s
 	return
 }
 
-func (p *ProxyEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo, err error) {
+func (p *ProxyEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo2, err error) {
 	var servers []string
 	if servers, err = p.Resolver.Resolve(ctx); err != nil {
 		return
 	}
 
 	srvcount := len(servers)
-	results := make(chan []NodeInfo, srvcount)
+	results := make(chan []NodeInfo2, srvcount)
 	errors := make(chan error, srvcount)
 
 	for _, server := range servers {
 		go func(server string) {
 			var res struct {
-				Producers []NodeInfo `json:"producers"`
+				Producers []NodeInfo2 `json:"producers"`
 			}
 			if err := p.get(ctx, server+"/nodes", &res); err != nil {
 				errors <- err
@@ -83,12 +83,12 @@ func (p *ProxyEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo, err er
 		}(server)
 	}
 
-	set := make(map[string]NodeInfo)
+	set := make(map[string]NodeInfo2)
 	for i := 0; i != srvcount; i++ {
 		select {
 		case r := <-results:
 			for _, n := range r {
-				set[httpBroadcastAddress(n)] = n
+				set[makeBroadcastAddress(n.BroadcastAddress, n.HttpPort)] = n
 			}
 		case e := <-errors:
 			if e != errNotFound {
@@ -98,7 +98,7 @@ func (p *ProxyEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo, err er
 	}
 
 	if len(set) != 0 {
-		nodes = make([]NodeInfo, 0, len(set))
+		nodes = make([]NodeInfo2, 0, len(set))
 		for _, node := range set {
 			nodes = append(nodes, node)
 		}

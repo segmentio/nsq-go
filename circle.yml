@@ -3,8 +3,6 @@ machine:
     - curl -sSL https://s3.amazonaws.com/circle-downloads/install-circleci-docker.sh | bash -s -- 1.10.0
   services:
     - docker
-  environment:
-    WORKDIR: /go/src/github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}
 
 dependencies:
   override:
@@ -26,10 +24,10 @@ test:
       --workdir /go/src/github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}
       segment/golang:latest
       go.test='govendor test -v -cover +local'
-    - cd ${WORKDIR} && mkdir -p ./build
-    - cd ${WORKDIR} && go build -o ./build/nsq-to-nsq ./cmd/nsq-to-nsq
-    - cd ${WORKDIR} && go build -o ./build/nsqlookup-proxy ./cmd/nsqlookup-proxy
-    - cd ${WORKDIR} && docker build -t segment/nsq .
+    - mkdir -p ./build
+    - go build -o ./build/nsq-to-nsq ./cmd/nsq-to-nsq
+    - go build -o ./build/nsqlookup-proxy ./cmd/nsqlookup-proxy
+    - docker build -t segment/nsq .
 
 deployment:
   release:

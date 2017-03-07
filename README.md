@@ -80,3 +80,12 @@ func main() {
     producer.Stop()
 }
 ```
+
+segment/nsq
+-----------
+
+The [segment/nsq](https://hub.docker.com/r/segment/nsq/tags) docker image packages
+the tools within this repository:
+- **nsq-to-nsq** is similar to the standard nsq_to_nsq tool but supports rate limiting.
+- **nsqlookup-proxy** is a proxy for nsqlookupd, it aggregates the results from querying
+multiple nsqlookupd servers and exposes them under a single endpoint.

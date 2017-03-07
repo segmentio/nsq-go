@@ -22,11 +22,22 @@ test:
       --volume ${GOPATH%%:*}/src:/go/src
       --volume ${PWD}:/go/src/github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}
       --workdir /go/src/github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}
-      segment/golang:1.8rc2
+      segment/golang:latest
       go.test='govendor test -v -cover +local'
+    - mkdir -p ./build
+    - go build -o ./build/nsq-to-nsq ./cmd/nsq-to-nsq
+    - go build -o ./build/nsqlookupd ./cmd/nsqlookupd
+    - go build -o ./build/nsqlookup-proxy ./cmd/nsqlookup-proxy
 
 deployment:
+  master:
+    branch: master
+    commands:
+      - docker build -t segment/nsq .
+      - docker tag segment/nsq segment/nsq:${CIRCLE_TAG}
   release:
     tag: /.*/
     commands:
-      - 'true'
+      - docker build -t segment/nsq .
+      - docker tag segment/nsq segment/nsq:${CIRCLE_TAG}
+      - docker push segment/nsq

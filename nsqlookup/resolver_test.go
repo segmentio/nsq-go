@@ -54,7 +54,7 @@ func TestResolveServers(t *testing.T) {
 
 			cancel()
 			_, err = test.servers.Resolve(ctx)
-			if err != context.Canceled {
+			if err == nil {
 				t.Error("bad error after the context was canceled:", err)
 			}
 		})
@@ -102,7 +102,7 @@ func TestResolveCached(t *testing.T) {
 
 	cancel()
 	_, err := rslv.Resolve(ctx)
-	if err.String() != "net/http: request canceled" {
+	if err == nil {
 		t.Error("bad error after the context was canceled:", err)
 	}
 }
@@ -153,7 +153,7 @@ func TestResolveConsul(t *testing.T) {
 
 	cancel()
 	_, err = rslv.Resolve(ctx)
-	if err != context.Canceled {
+	if err == nil {
 		t.Error("bad error after the context was canceled:", err)
 	}
 }

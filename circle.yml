@@ -28,16 +28,12 @@ test:
     - go build -o ./build/nsq-to-nsq ./cmd/nsq-to-nsq
     - go build -o ./build/nsqlookupd ./cmd/nsqlookupd
     - go build -o ./build/nsqlookup-proxy ./cmd/nsqlookup-proxy
+    - docker build -t segment/nsq .
 
 deployment:
-  master:
-    branch: master
-    commands:
-      - docker build -t segment/nsq .
-      - docker tag segment/nsq segment/nsq:${CIRCLE_TAG}
   release:
     tag: /.*/
     commands:
-      - docker build -t segment/nsq .
       - docker tag segment/nsq segment/nsq:${CIRCLE_TAG}
+      - docker login -e ${DOCKER_EMAIL} -u ${DOCKER_USER} -p ${DOCKER_PASS}
       - docker push segment/nsq

@@ -102,7 +102,7 @@ func TestResolveCached(t *testing.T) {
 
 	cancel()
 	_, err := rslv.Resolve(ctx)
-	if err != context.Canceled {
+	if err.String() != "net/http: request canceled" {
 		t.Error("bad error after the context was canceled:", err)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -114,8 +115,6 @@ type ConsulResolver struct {
 func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error) {
 	var address = r.Address
 	var service = r.Service
-	var req *http.Request
-	var res *http.Response
 	var t http.RoundTripper
 
 	if t = r.Transport; t == nil {
@@ -134,8 +133,77 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 		address = "http://" + address
 	}
 
-	if req, err = http.NewRequest("GET", address+"/v1/catalog/service/"+service, nil); err != nil {
+	// get list of check results for service
+	var checksResults []struct {
+		Node string
+	}
+
+	checksBody, _ := r.getConsul(ctx, fmt.Sprintf("v1/health/checks/%s?passing", service))
+	if err = json.Unmarshal(checksBody, &checksResults); err != nil {
 		return
+	}
+
+	// get list of nodes for service
+	var serviceResults []struct {
+		Node           string
+		Address        string
+		ServiceAddress string
+		ServicePort    int
+	}
+
+	serviceBody, _ := r.getConsul(ctx, fmt.Sprintf("v1/catalog/service/%s", service))
+	if err = json.Unmarshal(serviceBody, &serviceResults); err != nil {
+		return
+	}
+
+	list = make([]string, 0, len(checksResults))
+
+	for _, r := range serviceResults {
+		var passing bool
+		for _, c := range checksResults {
+			if c.Node == r.Node {
+				passing = true
+				break
+			}
+		}
+
+		if passing {
+			host := r.ServiceAddress
+			port := r.ServicePort
+
+			if len(host) == 0 {
+				host = r.Address
+			}
+
+			list = append(list, net.JoinHostPort(host, strconv.Itoa(port)))
+		}
+	}
+
+	return
+}
+
+func (r *ConsulResolver) getConsul(ctx context.Context, endpoint string) ([]byte, error) {
+	var address = r.Address
+	var req *http.Request
+	var res *http.Response
+	var t http.RoundTripper
+	var err error
+
+	if t = r.Transport; t == nil {
+		t = http.DefaultTransport
+	}
+
+	if len(address) == 0 {
+		address = "http://localhost:8500"
+	}
+
+	if strings.Index(address, "://") < 0 {
+		address = "http://" + address
+	}
+
+	// Get list of check results for service
+	if req, err = http.NewRequest("GET", fmt.Sprintf("%s/%s", address, endpoint), nil); err != nil {
+		return nil, err
 	}
 	req.Header.Set("User-Agent", "nsqlookup consul resolver")
 	req.Header.Set("Accept", "application/json")
@@ -145,42 +213,21 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 	}
 
 	if res, err = t.RoundTrip(req); err != nil {
-		return
+		return nil, err
 	}
 	defer res.Body.Close()
 
 	switch res.StatusCode {
 	case http.StatusOK:
 	case http.StatusNotFound:
-		return
+		return nil, err
 	default:
-		err = fmt.Errorf("error looking up %s on consul agent at %s: %d %s", service, address, res.StatusCode, res.Status)
-		return
+		err = fmt.Errorf("error looking up %s on consul agent at %s: %d %s", endpoint, address, res.StatusCode, res.Status)
+		return nil, err
 	}
 
-	var results []struct {
-		Address        string
-		ServiceAddress string
-		ServicePort    int
-	}
-
-	if err = json.NewDecoder(res.Body).Decode(&results); err != nil {
-		return
-	}
-	list = make([]string, 0, len(results))
-
-	for _, r := range results {
-		host := r.ServiceAddress
-		port := r.ServicePort
-
-		if len(host) == 0 {
-			host = r.Address
-		}
-
-		list = append(list, net.JoinHostPort(host, strconv.Itoa(port)))
-	}
-
-	return
+	body, _ := ioutil.ReadAll(res.Body)
+	return body, nil
 }
 
 // MultiResolver returns a resolver that merges all resolves from rslv when its

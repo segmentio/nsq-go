@@ -138,9 +138,9 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 		Node string
 	}
 
-	checksBody, _ := r.getConsul(ctx, fmt.Sprintf("v1/health/checks/%s?passing", service))
-	if err = json.Unmarshal(checksBody, &checksResults); err != nil {
-		return
+	err = r.getConsul(ctx, fmt.Sprintf("v1/health/checks/%s?passing", service), &checksResults)
+	if err != nil {
+		return nil, err
 	}
 
 	// get list of nodes for service
@@ -151,9 +151,9 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 		ServicePort    int
 	}
 
-	serviceBody, _ := r.getConsul(ctx, fmt.Sprintf("v1/catalog/service/%s", service))
-	if err = json.Unmarshal(serviceBody, &serviceResults); err != nil {
-		return
+	err = r.getConsul(ctx, fmt.Sprintf("v1/catalog/service/%s", service), &serviceResults)
+	if err != nil {
+		return nil, err
 	}
 
 	list = make([]string, 0, len(checksResults))
@@ -182,7 +182,7 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 	return
 }
 
-func (r *ConsulResolver) getConsul(ctx context.Context, endpoint string) ([]byte, error) {
+func (r *ConsulResolver) getConsul(ctx context.Context, endpoint string, result interface{}) error {
 	var address = r.Address
 	var req *http.Request
 	var res *http.Response
@@ -203,7 +203,7 @@ func (r *ConsulResolver) getConsul(ctx context.Context, endpoint string) ([]byte
 
 	// Get list of check results for service
 	if req, err = http.NewRequest("GET", fmt.Sprintf("%s/%s", address, endpoint), nil); err != nil {
-		return nil, err
+		return err
 	}
 	req.Header.Set("User-Agent", "nsqlookup consul resolver")
 	req.Header.Set("Accept", "application/json")
@@ -213,21 +213,26 @@ func (r *ConsulResolver) getConsul(ctx context.Context, endpoint string) ([]byte
 	}
 
 	if res, err = t.RoundTrip(req); err != nil {
-		return nil, err
+		return err
 	}
 	defer res.Body.Close()
 
 	switch res.StatusCode {
 	case http.StatusOK:
 	case http.StatusNotFound:
-		return nil, err
+		return err
 	default:
 		err = fmt.Errorf("error looking up %s on consul agent at %s: %d %s", endpoint, address, res.StatusCode, res.Status)
-		return nil, err
+		return err
 	}
 
 	body, _ := ioutil.ReadAll(res.Body)
-	return body, nil
+
+	if err = json.Unmarshal(body, result); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // MultiResolver returns a resolver that merges all resolves from rslv when its

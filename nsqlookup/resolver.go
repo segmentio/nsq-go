@@ -140,7 +140,7 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 
 	err = r.getConsul(ctx, fmt.Sprintf("v1/health/checks/%s?passing", service), &checksResults)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	// get list of nodes for service
@@ -153,7 +153,7 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 
 	err = r.getConsul(ctx, fmt.Sprintf("v1/catalog/service/%s", service), &serviceResults)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	list = make([]string, 0, len(checksResults))

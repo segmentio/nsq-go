@@ -109,27 +109,46 @@ func TestResolveCached(t *testing.T) {
 
 func TestResolveConsul(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != "/v1/catalog/service/nsqlookupd" {
+		if req.URL.Path == "/v1/catalog/service/nsqlookupd" {
+			json.NewEncoder(res).Encode([]struct {
+				Node           string
+				ServiceAddress string
+				ServicePort    int
+			}{
+				{
+					Node:           "A",
+					ServiceAddress: "127.0.0.1",
+					ServicePort:    4242,
+				},
+				{
+					Node:           "B",
+					ServiceAddress: "192.168.0.1",
+					ServicePort:    4161,
+				},
+				{
+					Node:           "C",
+					ServiceAddress: "192.168.0.2",
+					ServicePort:    4161,
+				},
+			})
+		} else if req.URL.Path == "/v1/health/checks/nsqlookupd" {
+			json.NewEncoder(res).Encode([]struct {
+				Node string
+			}{
+				{
+					Node: "A",
+				},
+				{
+					Node: "B",
+				},
+				{
+					Node: "C",
+				},
+			})
+		} else {
 			t.Error("bad URL path:", req.URL.Path)
 		}
 		res.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(res).Encode([]struct {
-			ServiceAddress string
-			ServicePort    int
-		}{
-			{
-				ServiceAddress: "127.0.0.1",
-				ServicePort:    4242,
-			},
-			{
-				ServiceAddress: "192.168.0.1",
-				ServicePort:    4161,
-			},
-			{
-				ServiceAddress: "192.168.0.2",
-				ServicePort:    4161,
-			},
-		})
 	}))
 	defer server.Close()
 

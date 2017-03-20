@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -133,17 +132,15 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 		address = "http://" + address
 	}
 
-	// get list of check results for service
 	var checksResults []struct {
 		Node string
 	}
 
-	err = r.getConsul(ctx, fmt.Sprintf("v1/health/checks/%s?passing", service), &checksResults)
+	err = r.get(ctx, "v1/health/checks/"+service+"?passing", &checksResults)
 	if err != nil {
 		return
 	}
 
-	// get list of nodes for service
 	var serviceResults []struct {
 		Node           string
 		Address        string
@@ -151,7 +148,7 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 		ServicePort    int
 	}
 
-	err = r.getConsul(ctx, fmt.Sprintf("v1/catalog/service/%s", service), &serviceResults)
+	err = r.get(ctx, "v1/catalog/service/"+service, &serviceResults)
 	if err != nil {
 		return
 	}
@@ -182,7 +179,7 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 	return
 }
 
-func (r *ConsulResolver) getConsul(ctx context.Context, endpoint string, result interface{}) error {
+func (r *ConsulResolver) get(ctx context.Context, endpoint string, result interface{}) error {
 	var address = r.Address
 	var req *http.Request
 	var res *http.Response
@@ -201,8 +198,7 @@ func (r *ConsulResolver) getConsul(ctx context.Context, endpoint string, result 
 		address = "http://" + address
 	}
 
-	// Get list of check results for service
-	if req, err = http.NewRequest("GET", fmt.Sprintf("%s/%s", address, endpoint), nil); err != nil {
+	if req, err = http.NewRequest("GET", address+"/"+endpoint, nil); err != nil {
 		return err
 	}
 	req.Header.Set("User-Agent", "nsqlookup consul resolver")
@@ -226,9 +222,7 @@ func (r *ConsulResolver) getConsul(ctx context.Context, endpoint string, result 
 		return err
 	}
 
-	body, _ := ioutil.ReadAll(res.Body)
-
-	if err = json.Unmarshal(body, result); err != nil {
+	if err = json.NewDecoder(res.Body).Decode(result); err != nil {
 		return err
 	}
 

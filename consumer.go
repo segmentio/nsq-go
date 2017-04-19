@@ -47,32 +47,46 @@ type ConsumerConfig struct {
 	WriteTimeout time.Duration
 }
 
-func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
-	if len(config.Topic) == 0 {
-		err = errors.New("creating a new consumer requires a non-empty topic")
+// validate ensures that this configuration is well-formed.
+func (c *ConsumerConfig) validate() error {
+	if len(c.Topic) == 0 {
+		return errors.New("creating a new consumer requires a non-empty topic")
+	}
+
+	if len(c.Channel) == 0 {
+		return errors.New("creating a new consumer requires a non-empty channel")
+	}
+
+	return nil
+}
+
+// defaults will set up this configuration with the global defaults where they
+// were not already set.
+func (c *ConsumerConfig) defaults() {
+	if c.MaxInFlight == 0 {
+		c.MaxInFlight = DefaultMaxInFlight
+	}
+
+	if c.DialTimeout == 0 {
+		c.DialTimeout = DefaultDialTimeout
+	}
+
+	if c.ReadTimeout == 0 {
+		c.ReadTimeout = DefaultReadTimeout
+	}
+
+	if c.WriteTimeout == 0 {
+		c.WriteTimeout = DefaultWriteTimeout
+	}
+}
+
+func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
+	if configError := config.validate(); configError != nil {
+		err = configError
 		return
 	}
 
-	if len(config.Channel) == 0 {
-		err = errors.New("creating a new consumer requires a non-empty channel")
-		return
-	}
-
-	if config.MaxInFlight == 0 {
-		config.MaxInFlight = DefaultMaxInFlight
-	}
-
-	if config.DialTimeout == 0 {
-		config.DialTimeout = DefaultDialTimeout
-	}
-
-	if config.ReadTimeout == 0 {
-		config.ReadTimeout = DefaultReadTimeout
-	}
-
-	if config.WriteTimeout == 0 {
-		config.WriteTimeout = DefaultWriteTimeout
-	}
+	config.defaults()
 
 	c = &Consumer{
 		msgs: make(chan Message, config.MaxInFlight),
@@ -91,8 +105,21 @@ func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
 		conns: make(map[string](chan<- Command)),
 	}
 
-	go c.run()
 	return
+}
+
+func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
+	c, err = NewConsumer(config)
+	if err != nil {
+		return
+	}
+
+	c.Start()
+	return
+}
+
+func (c *Consumer) Start() {
+	go c.run()
 }
 
 func (c *Consumer) Stop() {

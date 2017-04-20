@@ -9,7 +9,7 @@ services:
     network_mode: host
 
   nsqlookupd-1:
-    image: nsqio/nsq
+    image: nsqio/nsq:v0.3.8
     command: >
       /nsqlookupd
       -broadcast-address localhost:4160
@@ -18,7 +18,7 @@ services:
       - 4161:4161
 
   nsqlookupd-2:
-    image: nsqio/nsq
+    image: nsqio/nsq:v0.3.8
     command: >
       /nsqlookupd
       -broadcast-address localhost:4162
@@ -27,7 +27,7 @@ services:
       - 4163:4161
 
   nsqlookupd-3:
-    image: nsqio/nsq
+    image: nsqio/nsq:v0.3.8
     command: >
       /nsqlookupd
       -broadcast-address localhost:4164
@@ -36,7 +36,7 @@ services:
       - 4165:4161
 
   nsqd-1:
-    image: nsqio/nsq
+    image: nsqio/nsq:v0.3.8
     command: >
       /nsqd
       -broadcast-address localhost:4150
@@ -52,7 +52,7 @@ services:
       - nsqlookupd-3
 
   nsqd-2:
-    image: nsqio/nsq
+    image: nsqio/nsq:v0.3.8
     command: >
       /nsqd
       -broadcast-address localhost:4152
@@ -68,7 +68,7 @@ services:
       - nsqlookupd-3
 
   nsqd-3:
-    image: nsqio/nsq
+    image: nsqio/nsq:v0.3.8
     command: >
       /nsqd
       -broadcast-address localhost:4154

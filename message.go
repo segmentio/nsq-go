@@ -68,7 +68,7 @@ type Message struct {
 // One of Finish or Requeue should be called on every message, and the methods
 // will panic if they are called more than once.
 func (m *Message) Finish() {
-	if m.cmdChan == nil {
+	if m.Complete() {
 		panic("(*Message).Finish or (*Message).Requeue has already been called")
 	}
 	defer func() { recover() }() // the connection may have been closed asynchronously
@@ -84,12 +84,18 @@ func (m *Message) Finish() {
 // One of Finish or Requeue should be called on every message, and the methods
 // will panic if they are called more than once.
 func (m *Message) Requeue(timeout time.Duration) {
-	if m.cmdChan == nil {
+	if m.Complete() {
 		panic("(*Message).Finish or (*Message).Requeue has already been called")
 	}
 	defer func() { recover() }() // the connection may have been closed asynchronously
 	m.cmdChan <- Req{MessageID: m.ID, Timeout: timeout}
 	m.cmdChan = nil
+}
+
+// Complete will return a bool indicating whether Finish or Requeue has been called
+// for this message.
+func (m *Message) Complete() bool {
+	return m.cmdChan == nil
 }
 
 // FrameType returns FrameTypeMessage, satisfies the Frame interface.

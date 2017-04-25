@@ -14,10 +14,10 @@ import (
 
 type Consumer struct {
 	// Communication channels of the consumer.
-	msgs   chan Message  // messages read from the connections
-	done   chan struct{} // closed when the consumer is shutdown
-	ticker *time.Ticker
-	once   sync.Once
+	msgs    chan Message  // messages read from the connections
+	done    chan struct{} // closed when the consumer is shutdown
+	once    sync.Once
+	started bool
 
 	// Immutable state of the consumer.
 	topic        string
@@ -81,6 +81,7 @@ func (c *ConsumerConfig) defaults() {
 	}
 }
 
+// NewConsumer configures a new consumer instance.
 func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
 	if configError := config.validate(); configError != nil {
 		err = configError
@@ -109,6 +110,8 @@ func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
 	return
 }
 
+// StartConsumer creates and starts consuming from NSQ right away. This is the
+// fastest way to get up and running.
 func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
 	c, err = NewConsumer(config)
 	if err != nil {
@@ -119,12 +122,16 @@ func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
 	return
 }
 
+// Start explicitly begins consumption in case the consumer was initialized
+// with NewConsumer instead of StartConsumer.
 func (c *Consumer) Start() {
-	if c.ticker != nil {
+	if c.started {
 		panic("(*Consumer).Start has already been called")
 	}
 
 	go c.run()
+
+	c.started = true
 }
 
 func (c *Consumer) Stop() {
@@ -140,7 +147,7 @@ func (c *Consumer) stop() {
 }
 
 func (c *Consumer) run() {
-	c.ticker = time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	defer close(c.msgs)
 
@@ -150,7 +157,7 @@ func (c *Consumer) run() {
 
 	for {
 		select {
-		case <-c.ticker.C:
+		case <-ticker.C:
 			if err := c.pulse(); err != nil {
 				log.Print(err)
 			}

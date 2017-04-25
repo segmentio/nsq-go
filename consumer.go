@@ -14,9 +14,10 @@ import (
 
 type Consumer struct {
 	// Communication channels of the consumer.
-	msgs chan Message  // messages read from the connections
-	done chan struct{} // closed when the consumer is shutdown
-	once sync.Once
+	msgs   chan Message  // messages read from the connections
+	done   chan struct{} // closed when the consumer is shutdown
+	ticker *time.Ticker
+	once   sync.Once
 
 	// Immutable state of the consumer.
 	topic        string
@@ -119,6 +120,10 @@ func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
 }
 
 func (c *Consumer) Start() {
+	if c.ticker != nil {
+		panic("(*Consumer).Start has already been called")
+	}
+
 	go c.run()
 }
 
@@ -135,7 +140,7 @@ func (c *Consumer) stop() {
 }
 
 func (c *Consumer) run() {
-	ticker := time.NewTicker(15 * time.Second)
+	c.ticker = time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	defer close(c.msgs)
 
@@ -145,7 +150,7 @@ func (c *Consumer) run() {
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-c.ticker.C:
 			if err := c.pulse(); err != nil {
 				log.Print(err)
 			}

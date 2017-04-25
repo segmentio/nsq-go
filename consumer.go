@@ -83,8 +83,7 @@ func (c *ConsumerConfig) defaults() {
 
 // NewConsumer configures a new consumer instance.
 func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
-	if configError := config.validate(); configError != nil {
-		err = configError
+	if err = config.validate(); err != nil {
 		return
 	}
 

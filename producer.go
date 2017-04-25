@@ -20,15 +20,38 @@ type ProducerConfig struct {
 	WriteTimeout   time.Duration
 }
 
+func (c *ProducerConfig) defaults() {
+	if len(c.Address) == 0 {
+		c.Address = "localhost:4151"
+	}
+
+	if c.MaxConcurrency == 0 {
+		c.MaxConcurrency = DefaultMaxConcurrency
+	}
+
+	if c.DialTimeout == 0 {
+		c.DialTimeout = DefaultDialTimeout
+	}
+
+	if c.ReadTimeout == 0 {
+		c.ReadTimeout = DefaultReadTimeout
+	}
+
+	if c.WriteTimeout == 0 {
+		c.WriteTimeout = DefaultWriteTimeout
+	}
+}
+
 // Producer provide an abstraction around using direct connections to nsqd
 // nodes to send messages.
 type Producer struct {
 	// Communication channels of the producer.
-	reqs chan ProducerRequest
-	done chan struct{}
-	once sync.Once
-	join sync.WaitGroup
-	ok   uint32
+	reqs    chan ProducerRequest
+	done    chan struct{}
+	once    sync.Once
+	join    sync.WaitGroup
+	ok      uint32
+	started bool
 
 	// Immutable state of the producer.
 	address      string
@@ -47,29 +70,9 @@ type ProducerRequest struct {
 	Deadline time.Time
 }
 
-// StartProducer starts and returns a new producer p, configured with the
-// variables from the config parameter, or returning an non-nil error if
-// some of the configuration variables were invalid.
-func StartProducer(config ProducerConfig) (p *Producer, err error) {
-	if len(config.Address) == 0 {
-		config.Address = "localhost:4151"
-	}
-
-	if config.MaxConcurrency == 0 {
-		config.MaxConcurrency = DefaultMaxConcurrency
-	}
-
-	if config.DialTimeout == 0 {
-		config.DialTimeout = DefaultDialTimeout
-	}
-
-	if config.ReadTimeout == 0 {
-		config.ReadTimeout = DefaultReadTimeout
-	}
-
-	if config.WriteTimeout == 0 {
-		config.WriteTimeout = DefaultWriteTimeout
-	}
+// NewProducer configures a new producer instance.
+func NewProducer(config ProducerConfig) (p *Producer, err error) {
+	config.defaults()
 
 	p = &Producer{
 		reqs:         make(chan ProducerRequest, config.MaxConcurrency),
@@ -80,13 +83,37 @@ func StartProducer(config ProducerConfig) (p *Producer, err error) {
 		readTimeout:  config.ReadTimeout,
 		writeTimeout: config.WriteTimeout,
 	}
-	p.join.Add(config.MaxConcurrency)
 
-	for i := 0; i != config.MaxConcurrency; i++ {
+	return
+}
+
+// StartProducer starts and returns a new producer p, configured with the
+// variables from the config parameter, or returning an non-nil error if
+// some of the configuration variables were invalid.
+func StartProducer(config ProducerConfig) (p *Producer, err error) {
+	p, err = NewProducer(config)
+	if err != nil {
+		return
+	}
+
+	p.Start()
+	return
+}
+
+// Start explicitly begins the producer in case it was initialized with
+// NewProducer instead of StartProducer.
+func (p *Producer) Start() {
+	if p.started {
+		panic("(*Producer).Start has already been called")
+	}
+
+	concurrency := cap(p.reqs)
+	p.join.Add(concurrency)
+	for i := 0; i != concurrency; i++ {
 		go p.run()
 	}
 
-	return
+	p.started = true
 }
 
 // Stop gracefully shutsdown the producer, cancelling all inflight requests and

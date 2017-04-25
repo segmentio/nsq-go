@@ -14,9 +14,10 @@ import (
 
 type Consumer struct {
 	// Communication channels of the consumer.
-	msgs chan Message  // messages read from the connections
-	done chan struct{} // closed when the consumer is shutdown
-	once sync.Once
+	msgs    chan Message  // messages read from the connections
+	done    chan struct{} // closed when the consumer is shutdown
+	once    sync.Once
+	started bool
 
 	// Immutable state of the consumer.
 	topic        string
@@ -47,32 +48,46 @@ type ConsumerConfig struct {
 	WriteTimeout time.Duration
 }
 
-func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
-	if len(config.Topic) == 0 {
-		err = errors.New("creating a new consumer requires a non-empty topic")
+// validate ensures that this configuration is well-formed.
+func (c *ConsumerConfig) validate() error {
+	if len(c.Topic) == 0 {
+		return errors.New("creating a new consumer requires a non-empty topic")
+	}
+
+	if len(c.Channel) == 0 {
+		return errors.New("creating a new consumer requires a non-empty channel")
+	}
+
+	return nil
+}
+
+// defaults will set up this configuration with the global defaults where they
+// were not already set.
+func (c *ConsumerConfig) defaults() {
+	if c.MaxInFlight == 0 {
+		c.MaxInFlight = DefaultMaxInFlight
+	}
+
+	if c.DialTimeout == 0 {
+		c.DialTimeout = DefaultDialTimeout
+	}
+
+	if c.ReadTimeout == 0 {
+		c.ReadTimeout = DefaultReadTimeout
+	}
+
+	if c.WriteTimeout == 0 {
+		c.WriteTimeout = DefaultWriteTimeout
+	}
+}
+
+// NewConsumer configures a new consumer instance.
+func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
+	if err = config.validate(); err != nil {
 		return
 	}
 
-	if len(config.Channel) == 0 {
-		err = errors.New("creating a new consumer requires a non-empty channel")
-		return
-	}
-
-	if config.MaxInFlight == 0 {
-		config.MaxInFlight = DefaultMaxInFlight
-	}
-
-	if config.DialTimeout == 0 {
-		config.DialTimeout = DefaultDialTimeout
-	}
-
-	if config.ReadTimeout == 0 {
-		config.ReadTimeout = DefaultReadTimeout
-	}
-
-	if config.WriteTimeout == 0 {
-		config.WriteTimeout = DefaultWriteTimeout
-	}
+	config.defaults()
 
 	c = &Consumer{
 		msgs: make(chan Message, config.MaxInFlight),
@@ -91,8 +106,31 @@ func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
 		conns: make(map[string](chan<- Command)),
 	}
 
-	go c.run()
 	return
+}
+
+// StartConsumer creates and starts consuming from NSQ right away. This is the
+// fastest way to get up and running.
+func StartConsumer(config ConsumerConfig) (c *Consumer, err error) {
+	c, err = NewConsumer(config)
+	if err != nil {
+		return
+	}
+
+	c.Start()
+	return
+}
+
+// Start explicitly begins consumption in case the consumer was initialized
+// with NewConsumer instead of StartConsumer.
+func (c *Consumer) Start() {
+	if c.started {
+		panic("(*Consumer).Start has already been called")
+	}
+
+	go c.run()
+
+	c.started = true
 }
 
 func (c *Consumer) Stop() {

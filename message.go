@@ -62,6 +62,20 @@ type Message struct {
 	cmdChan chan<- Command
 }
 
+// NewMessage is a helper for creating Message instances directly. A common
+// use-case is for writing tests, generally you won't use this directly.
+//
+// If you do use this, the Command channel is used internally to communicate
+// message commands, such as "Finish" or "Requeue". When using this for testing,
+// you can make a channel and inspect any message sent along it for assertions.
+func NewMessage(id MessageID, body []byte, cmdChan chan<- Command) *Message {
+	return &Message{
+		ID:      id,
+		Body:    body,
+		cmdChan: cmdChan,
+	}
+}
+
 // Finish must be called on every message received from a consumer to let the
 // NSQ server know that the message was successfully processed.
 //

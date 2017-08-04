@@ -5,6 +5,9 @@ machine:
     - docker
 
 dependencies:
+  pre:
+    - sudo pip install awscli==1.11.76
+    - $(aws ecr get-login --region $AWS_REGION)
   override:
     - docker pull segment/golang:latest
 
@@ -33,5 +36,8 @@ deployment:
     tag: /.*/
     commands:
       - docker tag segment/nsq segment/nsq:${CIRCLE_TAG}
+      - docker tag segment/nsq $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/nsq:${CIRCLE_TAG}
+      - docker tag segment/nsq $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/nsq:latest
       - docker login -e ${DOCKER_EMAIL} -u ${DOCKER_USER} -p ${DOCKER_PASS}
       - docker push segment/nsq
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/nsq

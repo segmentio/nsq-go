@@ -108,41 +108,53 @@ func TestResolveCached(t *testing.T) {
 }
 
 func TestResolveConsul(t *testing.T) {
+	type ServiceResultNode struct {
+		Node    string
+		Address string
+	}
+
+	type ServiceResultService struct {
+		Address string
+		Port    int
+	}
+
+	type ServiceResult struct {
+		Node    ServiceResultNode
+		Service ServiceResultService
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		if req.URL.Path == "/v1/catalog/service/nsqlookupd" {
-			json.NewEncoder(res).Encode([]struct {
-				Node           string
-				ServiceAddress string
-				ServicePort    int
-			}{
+		if req.URL.Path == "/v1/health/service/nsqlookupd" {
+			json.NewEncoder(res).Encode([]ServiceResult{
 				{
-					Node:           "A",
-					ServiceAddress: "127.0.0.1",
-					ServicePort:    4242,
+					Node: ServiceResultNode{
+						Node:    "A",
+						Address: "127.0.0.1",
+					},
+					Service: ServiceResultService{
+						Address: "",
+						Port:    4242,
+					},
 				},
 				{
-					Node:           "B",
-					ServiceAddress: "192.168.0.1",
-					ServicePort:    4161,
+					Node: ServiceResultNode{
+						Node:    "B",
+						Address: "192.168.0.20",
+					},
+					Service: ServiceResultService{
+						Address: "192.168.0.1",
+						Port:    4161,
+					},
 				},
 				{
-					Node:           "C",
-					ServiceAddress: "192.168.0.2",
-					ServicePort:    4161,
-				},
-			})
-		} else if req.URL.Path == "/v1/health/checks/nsqlookupd" {
-			json.NewEncoder(res).Encode([]struct {
-				Node string
-			}{
-				{
-					Node: "A",
-				},
-				{
-					Node: "B",
-				},
-				{
-					Node: "C",
+					Node: ServiceResultNode{
+						Node:    "C",
+						Address: "192.168.0.2",
+					},
+					Service: ServiceResultService{
+						Address: "",
+						Port:    4161,
+					},
 				},
 			})
 		} else {

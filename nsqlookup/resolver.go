@@ -132,48 +132,33 @@ func (r *ConsulResolver) Resolve(ctx context.Context) (list []string, err error)
 		address = "http://" + address
 	}
 
-	var checksResults []struct {
-		Node string
-	}
-
-	err = r.get(ctx, "v1/health/checks/"+service+"?passing", &checksResults)
-	if err != nil {
-		return
-	}
-
 	var serviceResults []struct {
-		Node           string
-		Address        string
-		ServiceAddress string
-		ServicePort    int
+		Node struct {
+			Node    string
+			Address string
+		}
+		Service struct {
+			Address string
+			Port    int
+		}
 	}
 
-	err = r.get(ctx, "v1/catalog/service/"+service, &serviceResults)
+	err = r.get(ctx, "v1/health/service/"+service+"?passing", &serviceResults)
 	if err != nil {
 		return
 	}
 
-	list = make([]string, 0, len(checksResults))
+	list = make([]string, 0, len(serviceResults))
 
 	for _, r := range serviceResults {
-		var passing bool
-		for _, c := range checksResults {
-			if c.Node == r.Node {
-				passing = true
-				break
-			}
+		host := r.Service.Address
+		port := r.Service.Port
+
+		if len(host) == 0 {
+			host = r.Node.Address
 		}
 
-		if passing {
-			host := r.ServiceAddress
-			port := r.ServicePort
-
-			if len(host) == 0 {
-				host = r.Address
-			}
-
-			list = append(list, net.JoinHostPort(host, strconv.Itoa(port)))
-		}
+		list = append(list, net.JoinHostPort(host, strconv.Itoa(port)))
 	}
 
 	return

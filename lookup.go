@@ -3,6 +3,7 @@ package nsq
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -36,6 +37,8 @@ type LookupClient struct {
 func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
 	var retList [][]byte
 
+	fmt.Println("************** before restList")
+
 	if retList, err = c.doAll("GET", "/lookup", url.Values{"topic": []string{topic}}, nil); len(retList) == 0 {
 		return
 	}
@@ -57,11 +60,15 @@ func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
 			StatusTxt  string       `json:"status_txt"`
 			Data       LookupResult `json:"data"`
 		}{}
+		fmt.Println("************** before unmarshall")
 
 		if e := json.Unmarshal(r, &v); e != nil {
 			err = appendError(err, e)
+			fmt.Println("************** erro unmarshall", err)
+
 			continue
 		}
+		fmt.Println("********************* len channels, producers", len(v.Data.Channels), len(v.Data.Producers))
 
 		for _, c := range v.Data.Channels {
 			channels[c] = true

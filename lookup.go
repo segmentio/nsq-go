@@ -37,7 +37,7 @@ type LookupClient struct {
 func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
 	var retList [][]byte
 
-	fmt.Println("************** before restList")
+	fmt.Println("************** before lookup call ", time.Now().UTC())
 
 	if retList, err = c.doAll("GET", "/lookup", url.Values{"topic": []string{topic}}, nil); len(retList) == 0 {
 		return

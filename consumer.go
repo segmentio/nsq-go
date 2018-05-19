@@ -143,6 +143,7 @@ func (c *Consumer) Messages() <-chan Message {
 
 func (c *Consumer) stop() {
 	close(c.done)
+	c.join.Wait()
 }
 
 func (c *Consumer) run() {
@@ -163,7 +164,6 @@ func (c *Consumer) run() {
 
 		case <-c.done:
 			c.close()
-			c.join.Wait()
 			return
 		}
 	}

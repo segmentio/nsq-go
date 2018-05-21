@@ -15,7 +15,7 @@ func TestMessage(t *testing.T) {
 			ID:        42,
 			Attempts:  3,
 			Body:      []byte("Hello World!"),
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Round(time.Nanosecond),
 		},
 	} {
 		t.Run(m.ID.String(), func(t *testing.T) {

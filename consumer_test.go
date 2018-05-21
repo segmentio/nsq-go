@@ -90,6 +90,10 @@ func TestRequeue(t *testing.T) {
 	}
 	defer c.DeleteTopic("test-requeue")
 
+	// Allow some time for the nsqd nodes to inform nsqlookupd that they host
+	// a specific topic.
+	time.Sleep(100 * time.Millisecond)
+
 	consumer, _ := StartConsumer(ConsumerConfig{
 		Topic:   "test-requeue",
 		Channel: "channel",

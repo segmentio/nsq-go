@@ -131,13 +131,13 @@ func forward(ctx context.Context, dst *url.URL, contentType string, config nsq.C
 
 		if err != nil {
 			msg.Requeue(backoff(rand, attempt, minBackoff, maxBackoff))
-			log.Println("error sending http request:", err)
+			log.Print("error sending http request:", err)
 			continue
 		}
 
 		if res.StatusCode >= 300 {
 			msg.Requeue(backoff(rand, attempt, minBackoff, maxBackoff))
-			log.Println("POST %s (%d): %s", dst, len(msg.Body), res.Status)
+			log.Printf("POST %s (%d): %s", dst, len(msg.Body), res.Status)
 			continue
 		}
 

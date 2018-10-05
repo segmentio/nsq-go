@@ -33,11 +33,18 @@ jobs:
           command: |
             tag=${CIRCLE_TAG:-circleci-$CIRCLE_BUILD_NUM}
             docker_hub_image=segment/nsq:${tag}
-            segment_image=528451384384.dkr.ecr.us-west-2.amazonaws.com/nsq:${tag}
+            ecr_image=528451384384.dkr.ecr.us-west-2.amazonaws.com/nsq:${tag}
+
             $(aws ecr get-login --no-include-email --region ${AWS_REGION})
+
             docker login -u $DOCKER_USER -p $DOCKER_PASS
-            docker build -t ${image} .
-            docker push ${image}
+            docker build -t nsq .
+
+            docker tag nsq ${docker_hub_image}
+            docker tag nsq ${ecr_image}
+
+            docker push ${docker_hub_image}
+            docker push ${ecr_image}
 
 workflows:
   version: 2

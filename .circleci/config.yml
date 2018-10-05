@@ -1,6 +1,6 @@
 version: 2
 jobs:
-  build:
+  test:
     working_directory: /go/src/github.com/segmentio/nsq-go
     docker:
       - image: segment/circleci-golang:1.11.0

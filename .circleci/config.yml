@@ -94,4 +94,6 @@ workflows:
   run:
     jobs:
       - test
-      - build
+      - build:
+          filters:
+            tags: { only: /.*/ }

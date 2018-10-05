@@ -1,6 +1,7 @@
 package nsq
 
 import (
+	"math"
 	"testing"
 	"time"
 )
@@ -15,7 +16,7 @@ func TestMessage(t *testing.T) {
 			ID:        42,
 			Attempts:  3,
 			Body:      []byte("Hello World!"),
-			Timestamp: time.Now(),
+			Timestamp: time.Unix(math.MaxUint32, 0),
 		},
 	} {
 		t.Run(m.ID.String(), func(t *testing.T) {

@@ -1,0 +1,97 @@
+version: 2
+jobs:
+  test:
+    working_directory: /go/src/github.com/segmentio/nsq-go
+    docker:
+      - image: segment/circleci-golang:1.11.0
+        environment:
+          GO111MODULE: 'on'
+
+      - image: consul:latest
+        command: agent -server -dev -log-level debug
+
+      - image: nsqio/nsq:v0.3.8
+        command: /nsqlookupd -broadcast-address localhost:4160 -tcp-address 0.0.0.0:4160 -http-address 0.0.0.0:4161
+
+      - image: nsqio/nsq:v0.3.8
+        command: /nsqlookupd -broadcast-address localhost:4162 -tcp-address 0.0.0.0:4162 -http-address 0.0.0.0:4163
+
+      - image: nsqio/nsq:v0.3.8
+        command: /nsqlookupd -broadcast-address localhost:4164 -tcp-address 0.0.0.0:4164 -http-address 0.0.0.0:4165
+
+      - image: nsqio/nsq:v0.3.8
+        command: >
+          /nsqd
+          -broadcast-address localhost:4150
+          -tcp-address 0.0.0.0:4150
+          -http-address 0.0.0.0:4151
+          -lookupd-tcp-address localhost:4160
+          -lookupd-tcp-address localhost:4162
+          -lookupd-tcp-address localhost:4164
+
+      - image: nsqio/nsq:v0.3.8
+        command: >
+          /nsqd
+          -broadcast-address localhost:4152
+          -tcp-address 0.0.0.0:4152
+          -http-address 0.0.0.0:4153
+          -lookupd-tcp-address localhost:4160
+          -lookupd-tcp-address localhost:4162
+          -lookupd-tcp-address localhost:4164
+
+      - image: nsqio/nsq:v0.3.8
+        command: >
+          /nsqd
+          -broadcast-address localhost:4154
+          -tcp-address 0.0.0.0:4154
+          -http-address 0.0.0.0:4155
+          -lookupd-tcp-address localhost:4160
+          -lookupd-tcp-address localhost:4162
+          -lookupd-tcp-address localhost:4164
+
+    steps:
+      - checkout
+      - run: go mod download
+      - run: go test -v -race ./...
+
+  build:
+    working_directory: /go/src/github.com/segmentio/nsq-go
+    docker:
+      - image: segment/circleci-golang:1.11.0
+        environment:
+          GO111MODULE: 'on'
+          CGO_ENABLED: '0'
+    steps:
+      - checkout
+      - setup_remote_docker: { reusable: true, docker_layer_caching: true }
+      - run:
+          name: Build Programs
+          command: |
+            go mod download
+            go build ./cmd/nsq-to-nsq
+            go build ./cmd/nsq-to-http
+            go build ./cmd/nsqlookup-proxy
+      - run:
+          name: Publish Docker Image
+          command: |
+            tag=${CIRCLE_TAG:-circleci-$CIRCLE_BUILD_NUM}
+            docker_hub_image=segment/nsq:${tag}
+            ecr_image=528451384384.dkr.ecr.us-west-2.amazonaws.com/nsq:${tag}
+
+            $(aws ecr get-login --no-include-email --region ${AWS_REGION})
+
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            docker build -t nsq .
+
+            docker tag nsq ${docker_hub_image}
+            docker tag nsq ${ecr_image}
+
+            docker push ${docker_hub_image}
+            docker push ${ecr_image}
+
+workflows:
+  version: 2
+  run:
+    jobs:
+      - test
+      - build

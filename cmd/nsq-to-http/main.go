@@ -25,6 +25,7 @@ func main() {
 		LookupdHttpAddr []string `conf:"lookupd-http-address" help:"List of nsqlookupd servers"`
 		HTTPAddr        string   `conf:"http-address"         help:"List of nsqd nodes to publish to" validate:"nonzero"`
 		ContentType     string   `conf:"content-type"         help:"Value of the Content-Type header"`
+		UserAgent       string   `conf:"user-agent"           help:"Value of the User-Agent header"`
 		NsqdTcpAddr     string   `conf:"nsqd-tcp-address"     help:"Address of the nsqd node to consume from"`
 		Topic           string   `conf:"topic"                help:"Topic to consume messages from"`
 		Channel         string   `conf:"channel"              help:"Channel to consume messages from"`
@@ -32,11 +33,10 @@ func main() {
 		MaxInFlight     int      `conf:"max-in-flight"        help:"Maximum number of in-flight messages"               validate:"min=1"`
 		Concurrency     int      `conf:"concurrency"          help:"Number of concurrent consumers used by the program" validate:"min=1"`
 	}{
-		LookupdHttpAddr: []string{"localhost:4161"},
-		NsqdTcpAddr:     "localhost:4150",
-		ContentType:     "application/octet-stream",
-		MaxInFlight:     10,
-		Concurrency:     1,
+		ContentType: "application/octet-stream",
+		UserAgent:   "nsq-to-http (github.com/segmentio/nsq-go)",
+		MaxInFlight: 10,
+		Concurrency: 1,
 	}
 
 	conf.Load(&config)
@@ -74,7 +74,7 @@ func main() {
 
 	for i := 0; i < config.Concurrency; i++ {
 		go func() {
-			forward(ctx, dstURL, config.ContentType, consumerConfig)
+			forward(ctx, dstURL, config.ContentType, config.UserAgent, consumerConfig)
 			cancel()
 			wg.Done()
 		}()
@@ -93,7 +93,7 @@ func main() {
 	wg.Wait()
 }
 
-func forward(ctx context.Context, dst *url.URL, contentType string, config nsq.ConsumerConfig) {
+func forward(ctx context.Context, dst *url.URL, contentType, userAgent string, config nsq.ConsumerConfig) {
 	const minBackoff = 10 * time.Second
 	const maxBackoff = 10 * time.Minute
 
@@ -123,7 +123,7 @@ func forward(ctx context.Context, dst *url.URL, contentType string, config nsq.C
 			Header: http.Header{
 				"Attempt":      {strconv.Itoa(attempt)},
 				"Content-Type": {contentType},
-				"User-Agent":   {"nsq-to-nsq (github.com/segmentio/nsq-go)"},
+				"User-Agent":   {userAgent},
 			},
 			Body:          ioutil.NopCloser(bytes.NewReader(msg.Body)),
 			ContentLength: int64(len(msg.Body)),

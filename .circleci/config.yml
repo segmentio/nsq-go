@@ -1,0 +1,47 @@
+version: 2
+jobs:
+  build:
+    working_directory: /go/src/github.com/segmentio/nsq-go
+    docker:
+      - image: segment/circleci-golang:1.11
+        environment:
+          GO111MODULE: 'on'
+    steps:
+      - checkout
+      - run: go mod download
+      - run: go test -v -race ./...
+
+  build:
+    working_directory: /go/src/github.com/segmentio/nsq-go
+    docker:
+      - image: segment/circleci-golang:1.11
+        environment:
+          GO111MODULE: 'on'
+          CGO_ENABLED: '0'
+    steps:
+      - checkout
+      - setup_remote_docker: { reusable: true, docker_layer_caching: true }
+      - run:
+          name: Build Programs
+          command: |
+            go mod download
+            go build ./cmd/nsq-to-nsq
+            go build ./cmd/nsq-to-nsq
+            go build ./cmd/nsqlookup-proxy
+      - run:
+          name: Publish Docker Image
+          command: |
+            tag=${CIRCLE_TAG:-circleci-$CIRCLE_BUILD_NUM}
+            docker_hub_image=segment/nsq:${tag}
+            segment_image=528451384384.dkr.ecr.us-west-2.amazonaws.com/nsq:${tag}
+            $(aws ecr get-login --no-include-email --region ${AWS_REGION})
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            docker build -t ${image} .
+            docker push ${image}
+
+workflows:
+  version: 2
+  run:
+    jobs:
+      - test
+      - build

@@ -26,7 +26,7 @@ jobs:
           command: |
             go mod download
             go build ./cmd/nsq-to-nsq
-            go build ./cmd/nsq-to-nsq
+            go build ./cmd/nsq-to-http
             go build ./cmd/nsqlookup-proxy
       - run:
           name: Publish Docker Image

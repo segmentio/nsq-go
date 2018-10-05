@@ -65,6 +65,7 @@ func main() {
 		Lookup:      config.LookupdHttpAddr,
 		Address:     config.NsqdTcpAddr,
 		MaxInFlight: config.MaxInFlight,
+		Identify:    nsq.Identify{UserAgent: config.UserAgent},
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

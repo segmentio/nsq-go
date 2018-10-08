@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	_ "net/http/pprof"
 	"net/url"
 	"os"
 	"os/signal"
@@ -23,7 +24,8 @@ import (
 func main() {
 	config := struct {
 		LookupdHttpAddr []string `conf:"lookupd-http-address" help:"List of nsqlookupd servers"`
-		HTTPAddr        string   `conf:"http-address"         help:"List of nsqd nodes to publish to" validate:"nonzero"`
+		Bind            string   `conf:"bind"                 help:"Address to listen for incoming requests on" validate:"nonzero"`
+		HTTPAddr        string   `conf:"http-address"         help:"List of nsqd nodes to publish to"           validate:"nonzero"`
 		ContentType     string   `conf:"content-type"         help:"Value of the Content-Type header"`
 		UserAgent       string   `conf:"user-agent"           help:"Value of the User-Agent header"`
 		NsqdTcpAddr     string   `conf:"nsqd-tcp-address"     help:"Address of the nsqd node to consume from"`
@@ -33,6 +35,7 @@ func main() {
 		MaxInFlight     int      `conf:"max-in-flight"        help:"Maximum number of in-flight messages"               validate:"min=1"`
 		Concurrency     int      `conf:"concurrency"          help:"Number of concurrent consumers used by the program" validate:"min=1"`
 	}{
+		Bind:        ":3000",
 		ContentType: "application/octet-stream",
 		UserAgent:   "nsq-to-http (github.com/segmentio/nsq-go)",
 		MaxInFlight: 10,
@@ -41,12 +44,17 @@ func main() {
 
 	conf.Load(&config)
 
-	if len(config.Topic) == 0 {
+	if config.Topic == "" {
 		log.Fatal("error: missing topic")
 	}
 
-	if len(config.Channel) == 0 {
+	if config.Channel == "" {
 		log.Fatal("error: missing channel")
+	}
+
+	if config.Bind != "" {
+		log.Print("listening for incoming requests at", config.Bind)
+		go http.ListenAndServe(config.Bind, nil)
 	}
 
 	maxIdleConns := 2 * config.Concurrency

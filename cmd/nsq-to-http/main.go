@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"io/ioutil"
 	"log"
 	"math"
@@ -32,14 +31,12 @@ func main() {
 		Topic           string   `conf:"topic"                help:"Topic to consume messages from"`
 		Channel         string   `conf:"channel"              help:"Channel to consume messages from"`
 		RateLimit       int      `conf:"rate-limit"           help:"Maximum number of message per second processed"`
-		MaxInFlight     int      `conf:"max-in-flight"        help:"Maximum number of in-flight messages"               validate:"min=1"`
-		Concurrency     int      `conf:"concurrency"          help:"Number of concurrent consumers used by the program" validate:"min=1"`
+		MaxInFlight     int      `conf:"max-in-flight"        help:"Maximum number of in-flight messages" validate:"min=1"`
 	}{
 		Bind:        ":3000",
 		ContentType: "application/octet-stream",
 		UserAgent:   "nsq-to-http (github.com/segmentio/nsq-go)",
-		MaxInFlight: 10,
-		Concurrency: 1,
+		MaxInFlight: 100,
 	}
 
 	conf.Load(&config)
@@ -57,7 +54,7 @@ func main() {
 		go http.ListenAndServe(config.Bind, nil)
 	}
 
-	maxIdleConns := 2 * config.Concurrency
+	maxIdleConns := 2 * config.MaxInFlight
 	transport := http.DefaultTransport.(*http.Transport)
 	transport.MaxIdleConns = maxIdleConns
 	transport.MaxIdleConnsPerHost = maxIdleConns
@@ -67,24 +64,21 @@ func main() {
 		log.Fatal("error:", err)
 	}
 
-	consumerConfig := nsq.ConsumerConfig{
+	consumer, err := nsq.StartConsumer(nsq.ConsumerConfig{
 		Topic:       config.Topic,
 		Channel:     config.Channel,
 		Lookup:      config.LookupdHttpAddr,
 		Address:     config.NsqdTcpAddr,
 		MaxInFlight: config.MaxInFlight,
 		Identify:    nsq.Identify{UserAgent: config.UserAgent},
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
+	})
 
 	wg := sync.WaitGroup{}
-	wg.Add(config.Concurrency)
+	wg.Add(config.MaxInFlight)
 
-	for i := 0; i < config.Concurrency; i++ {
+	for i := 0; i < config.MaxInFlight; i++ {
 		go func() {
-			forward(ctx, dstURL, config.ContentType, config.UserAgent, consumerConfig)
-			cancel()
+			forward(dstURL, config.ContentType, config.UserAgent, consumer.Messages())
 			wg.Done()
 		}()
 	}
@@ -92,35 +86,21 @@ func main() {
 	sigchan := make(chan os.Signal)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	select {
-	case <-ctx.Done():
-	case <-sigchan:
-	}
+	<-sigchan
 
 	signal.Stop(sigchan)
-	cancel()
+	consumer.Stop()
 	wg.Wait()
 }
 
-func forward(ctx context.Context, dst *url.URL, contentType, userAgent string, config nsq.ConsumerConfig) {
+func forward(dst *url.URL, contentType, userAgent string, msgs <-chan nsq.Message) {
 	const minBackoff = 10 * time.Second
 	const maxBackoff = 10 * time.Minute
 
 	transport := http.DefaultTransport
 	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	consumer, err := nsq.StartConsumer(config)
-	if err != nil {
-		log.Print("error starting consumer:", err)
-		return
-	}
-
-	go func() {
-		<-ctx.Done()
-		consumer.Stop()
-	}()
-
-	for msg := range consumer.Messages() {
+	for msg := range msgs {
 		attempt := int(msg.Attempts)
 
 		res, err := transport.RoundTrip(&http.Request{

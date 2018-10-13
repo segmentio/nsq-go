@@ -54,10 +54,11 @@ func main() {
 		go http.ListenAndServe(config.Bind, nil)
 	}
 
-	maxIdleConns := 2 * config.MaxInFlight
+	maxConns := 2 * config.MaxInFlight
 	transport := http.DefaultTransport.(*http.Transport)
-	transport.MaxIdleConns = maxIdleConns
-	transport.MaxIdleConnsPerHost = maxIdleConns
+	transport.MaxIdleConns = maxConns
+	transport.MaxIdleConnsPerHost = maxConns
+	transport.MaxConnsPerHost = maxConns
 
 	dstURL, err := url.Parse(config.HTTPAddr)
 	if err != nil {

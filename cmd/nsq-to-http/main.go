@@ -18,25 +18,28 @@ import (
 
 	"github.com/segmentio/conf"
 	nsq "github.com/segmentio/nsq-go"
+	"github.com/segmentio/timers"
 )
 
 func main() {
 	config := struct {
-		LookupdHttpAddr []string `conf:"lookupd-http-address" help:"List of nsqlookupd servers"`
-		Bind            string   `conf:"bind"                 help:"Address to listen for incoming requests on" validate:"nonzero"`
-		HTTPAddr        string   `conf:"http-address"         help:"List of nsqd nodes to publish to"           validate:"nonzero"`
-		ContentType     string   `conf:"content-type"         help:"Value of the Content-Type header"`
-		UserAgent       string   `conf:"user-agent"           help:"Value of the User-Agent header"`
-		NsqdTcpAddr     string   `conf:"nsqd-tcp-address"     help:"Address of the nsqd node to consume from"`
-		Topic           string   `conf:"topic"                help:"Topic to consume messages from"`
-		Channel         string   `conf:"channel"              help:"Channel to consume messages from"`
-		RateLimit       int      `conf:"rate-limit"           help:"Maximum number of message per second processed"`
-		MaxInFlight     int      `conf:"max-in-flight"        help:"Maximum number of in-flight messages" validate:"min=1"`
+		LookupdHttpAddr []string      `conf:"lookupd-http-address" help:"List of nsqlookupd servers"`
+		Bind            string        `conf:"bind"                 help:"Address to listen for incoming requests on" validate:"nonzero"`
+		HTTPAddr        string        `conf:"http-address"         help:"List of nsqd nodes to publish to"           validate:"nonzero"`
+		ContentType     string        `conf:"content-type"         help:"Value of the Content-Type header"`
+		UserAgent       string        `conf:"user-agent"           help:"Value of the User-Agent header"`
+		NsqdTcpAddr     string        `conf:"nsqd-tcp-address"     help:"Address of the nsqd node to consume from"`
+		Topic           string        `conf:"topic"                help:"Topic to consume messages from"`
+		Channel         string        `conf:"channel"              help:"Channel to consume messages from"`
+		RateLimit       int           `conf:"rate-limit"           help:"Maximum number of message per second processed"`
+		MaxInFlight     int           `conf:"max-in-flight"        help:"Maximum number of in-flight messages"                           validate:"min=1"`
+		HTTPTimeout     time.Duration `conf:"http-timeout"         help:"Time limit of each http request sent out to the http endpoint." validate:"min=1"`
 	}{
 		Bind:        ":3000",
 		ContentType: "application/octet-stream",
 		UserAgent:   "nsq-to-http (github.com/segmentio/nsq-go)",
 		MaxInFlight: 100,
+		HTTPTimeout: 2 * time.Second,
 	}
 
 	conf.Load(&config)
@@ -79,7 +82,7 @@ func main() {
 
 	for i := 0; i < config.MaxInFlight; i++ {
 		go func() {
-			forward(dstURL, config.ContentType, config.UserAgent, consumer.Messages())
+			forward(dstURL, config.ContentType, config.UserAgent, config.HTTPTimeout, consumer.Messages())
 			wg.Done()
 		}()
 	}
@@ -94,7 +97,7 @@ func main() {
 	wg.Wait()
 }
 
-func forward(dst *url.URL, contentType, userAgent string, msgs <-chan nsq.Message) {
+func forward(dst *url.URL, contentType, userAgent string, timeout time.Duration, msgs <-chan nsq.Message) {
 	const minBackoff = 10 * time.Second
 	const maxBackoff = 10 * time.Minute
 
@@ -104,7 +107,7 @@ func forward(dst *url.URL, contentType, userAgent string, msgs <-chan nsq.Messag
 	for msg := range msgs {
 		attempt := int(msg.Attempts)
 
-		res, err := transport.RoundTrip(&http.Request{
+		res, err := transport.RoundTrip((&http.Request{
 			URL:        dst,
 			Method:     "POST",
 			Proto:      "HTTP/1.1",
@@ -117,7 +120,7 @@ func forward(dst *url.URL, contentType, userAgent string, msgs <-chan nsq.Messag
 			},
 			Body:          ioutil.NopCloser(bytes.NewReader(msg.Body)),
 			ContentLength: int64(len(msg.Body)),
-		})
+		}).WithContext(timers.LowRes.Timeout(timeout)))
 
 		if err != nil {
 			msg.Requeue(backoff(rand, attempt, minBackoff, maxBackoff))

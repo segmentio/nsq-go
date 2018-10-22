@@ -53,11 +53,13 @@ func main() {
 
 	switch protocol {
 	case "consul":
+		events.Log("using consul registry at %{address}s", address)
 		registry = &nsqlookup.ConsulRegistry{
 			Address:   address,
 			Transport: transport,
 		}
 	case "":
+		events.Log("using local registry mapping %{service}s to %{address}s", nsqlookupd, address)
 		registry = nsqlookup.LocalRegistry{
 			nsqlookupd: {address},
 		}
@@ -77,6 +79,11 @@ func main() {
 			CIDR: cidr,
 			Zone: zone,
 		})
+		events.Log("configuring network topology with %{cidr}s subnet in zone %{zone}s", cidr, zone)
+	}
+
+	for _, topic := range config.ZoneAwareTopics {
+		events.Log("applying zone restriction to topic %{topic}s", topic)
 	}
 
 	var proxy = &nsqlookup.ProxyEngine{

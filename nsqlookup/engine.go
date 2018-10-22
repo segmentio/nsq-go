@@ -119,7 +119,7 @@ type Engine interface {
 	// LookupTopics must return a list of all topics registered on the engine.
 	LookupTopics(ctx context.Context) ([]string, error)
 
-	// LookupChannels must return a list of all channels registerd for topic on
+	// LookupChannels must return a list of all channels registered for topic on
 	// the engine.
 	LookupChannels(ctx context.Context, topic string) ([]string, error)
 

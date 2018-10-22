@@ -1,7 +1,9 @@
 package main
 
 import (
+	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -11,15 +13,20 @@ import (
 	"github.com/segmentio/events/httpevents"
 	_ "github.com/segmentio/events/text"
 	"github.com/segmentio/nsq-go/nsqlookup"
+	"github.com/segmentio/services"
 )
 
 func main() {
 	config := struct {
-		Bind    string `conf:"bind"    help:"The network address to listen for incoming connections on."`
-		Verbose bool   `conf:"verbose" help:"Turn on verbose mode."`
-		Debug   bool   `conf:"debug"   help:"Turn on debug mode."`
+		Bind            string            `conf:"bind"              help:"The network address to listen for incoming connections on."`
+		Verbose         bool              `conf:"verbose"           help:"Turn on verbose mode."`
+		Debug           bool              `conf:"debug"             help:"Turn on debug mode."`
+		CacheTimeout    time.Duration     `conf:"cache-timeout"     help:"TTL of cached service endpoints."`
+		Topology        map[string]string `conf:"topology"          help:"Map of subnets to logical zone names used for zone-aware topics."`
+		ZoneAwareTopics []string          `conf:"zone-aware-topics" help:"List of topics for which zone restrictions are applied."`
 	}{
-		Bind: ":4181",
+		Bind:         ":4181",
+		CacheTimeout: 1 * time.Minute,
 	}
 
 	args := conf.Load(&config)
@@ -27,32 +34,63 @@ func main() {
 	events.DefaultLogger.EnableSource = config.Debug
 
 	var transport http.RoundTripper = http.DefaultTransport
-	var resolvers []nsqlookup.Resolver
-
 	if config.Verbose {
 		transport = httpevents.NewTransport(transport)
 	}
 
-	for _, addr := range args {
-		switch {
-		case strings.HasPrefix(addr, "consul://"):
-			address, service := splitConsulAddressService(addr)
-			resolvers = append(resolvers, &nsqlookup.ConsulResolver{
-				Address:   address,
-				Service:   service,
-				Transport: transport,
-			})
-		default:
-			resolvers = append(resolvers, nsqlookup.Servers{addr})
+	switch len(args) {
+	case 1:
+	case 0:
+		events.Log("missing registry endpoint")
+		os.Exit(1)
+	default:
+		events.Log("too many registry endpoints: %{endpoints}v", args)
+		os.Exit(1)
+	}
+
+	var registry services.Registry
+	protocol, address, nsqlookupd := splitAddressService(args[0])
+
+	switch protocol {
+	case "consul":
+		registry = &nsqlookup.ConsulRegistry{
+			Address:   address,
+			Transport: transport,
 		}
+	case "":
+		registry = nsqlookup.LocalRegistry{
+			nsqlookupd: {address},
+		}
+	default:
+		events.Log("unknown registry: %{protocol}s://%{address}s", protocol, address)
+		os.Exit(1)
+	}
+
+	var topology nsqlookup.SubnetTopology
+	for subnet, zone := range config.Topology {
+		_, cidr, err := net.ParseCIDR(subnet)
+		if err != nil {
+			events.Log("error parsing %{subnet}s subnet: %{error}v", subnet, err)
+			continue
+		}
+		topology = append(topology, nsqlookup.Subnet{
+			CIDR: cidr,
+			Zone: zone,
+		})
 	}
 
 	var proxy = &nsqlookup.ProxyEngine{
-		Transport: transport,
-		Resolver: &nsqlookup.CachedResolver{
-			Resolver: nsqlookup.MultiResolver(resolvers...),
-			Timeout:  10 * time.Second,
+		Transport:  transport,
+		Topology:   topology,
+		Nsqlookupd: nsqlookupd,
+
+		Registry: &services.Cache{
+			Registry: registry,
+			MinTTL:   config.CacheTimeout,
+			MaxTTL:   config.CacheTimeout,
 		},
+
+		ZoneAwareTopics: config.ZoneAwareTopics,
 	}
 
 	var handler http.Handler = nsqlookup.HTTPHandler{
@@ -67,8 +105,11 @@ func main() {
 	http.ListenAndServe(config.Bind, handler)
 }
 
-func splitConsulAddressService(addr string) (address string, service string) {
-	addr = addr[9:] // strip leading "consul://"
+func splitAddressService(addr string) (protocol, address, service string) {
+	if off := strings.Index(addr, "://"); off >= 0 {
+		protocol = addr[:off]
+		addr = addr[off+3:] // strip scheme
+	}
 
 	if off := strings.IndexByte(addr, '/'); off >= 0 {
 		address, service = addr[:off], addr[off+1:]
@@ -76,6 +117,5 @@ func splitConsulAddressService(addr string) (address string, service string) {
 		address, service = addr, "nsqlookupd"
 	}
 
-	address = "http://" + address
 	return
 }

@@ -6,6 +6,7 @@ require (
 	github.com/segmentio/events v2.1.0+incompatible
 	github.com/segmentio/go-snakecase v1.0.0 // indirect
 	github.com/segmentio/objconv v1.0.1 // indirect
+	github.com/segmentio/services v0.0.0-20180216231230-ef69a333c883
 	github.com/segmentio/timers v0.0.0-20180605162245-8ad1428b010e
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/mold.v2 v2.2.0 // indirect

@@ -5,8 +5,9 @@ version: '2'
 services:
   consul:
     image: consul:latest
-    command: agent -server -dev -log-level debug
-    network_mode: host
+    command: agent -server -dev -log-level debug -client 0.0.0.0
+    ports:
+      - 8500:8500
 
   nsqlookupd-1:
     image: nsqio/nsq:v0.3.8

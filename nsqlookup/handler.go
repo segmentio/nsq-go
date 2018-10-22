@@ -92,6 +92,12 @@ func (h HTTPHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	ctx := req.Context()
+
+	if xForwardedFor := req.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
+		ctx = WithClientIP(ctx, net.ParseIP(xForwardedFor))
+	}
+
 	query := req.URL.Query()
 	topic := query.Get("topic")
 
@@ -100,13 +106,13 @@ func (h HTTPHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	channels, err := h.Engine.LookupChannels(req.Context(), topic)
+	channels, err := h.Engine.LookupChannels(ctx, topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
 	}
 
-	nodes, err := h.Engine.LookupProducers(req.Context(), topic)
+	nodes, err := h.Engine.LookupProducers(ctx, topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return

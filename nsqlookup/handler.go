@@ -94,12 +94,14 @@ func (h HTTPHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 
 	ctx := req.Context()
 
-	if xForwardedFor := req.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
-		ctx = WithClientIP(ctx, net.ParseIP(xForwardedFor))
-	}
-
 	query := req.URL.Query()
 	topic := query.Get("topic")
+
+	if query.Get("all") == "" {
+		if xForwardedFor := req.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
+			ctx = WithClientIP(ctx, net.ParseIP(xForwardedFor))
+		}
+	}
 
 	if len(topic) == 0 {
 		h.sendResponse(res, req, 500, "MISSING_ARG_TOPIC", nil)

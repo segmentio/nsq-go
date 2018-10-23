@@ -12,6 +12,7 @@ import (
 	_ "github.com/segmentio/events/ecslogs"
 	"github.com/segmentio/events/httpevents"
 	_ "github.com/segmentio/events/text"
+	nsq "github.com/segmentio/nsq-go"
 	"github.com/segmentio/nsq-go/nsqlookup"
 	"github.com/segmentio/services"
 )
@@ -24,9 +25,14 @@ func main() {
 		CacheTimeout    time.Duration     `conf:"cache-timeout"     help:"TTL of cached service endpoints."`
 		Topology        map[string]string `conf:"topology"          help:"Map of subnets to logical zone names used for zone-aware topics."`
 		ZoneAwareTopics []string          `conf:"zone-aware-topics" help:"List of topics for which zone restrictions are applied."`
+		ZoneAwareAgents []string          `conf:"zone-aware-agents" help:"List of user agents to enable zone restrictions for."`
 	}{
 		Bind:         ":4181",
 		CacheTimeout: 1 * time.Minute,
+		ZoneAwareAgents: []string{
+			nsq.DefaultUserAgent,
+			"nsq-to-http (github.com/segmentio/nsq-go)",
+		},
 	}
 
 	args := conf.Load(&config)
@@ -101,7 +107,8 @@ func main() {
 	}
 
 	var handler http.Handler = nsqlookup.HTTPHandler{
-		Engine: proxy,
+		Engine:          proxy,
+		ZoneAwareAgents: config.ZoneAwareAgents,
 	}
 
 	if config.Verbose {

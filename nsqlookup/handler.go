@@ -47,8 +47,8 @@ type HTTPHandler struct {
 	// operations.
 	EngineTimeout time.Duration
 
-	// List of user agents to disable zone-awareness for.
-	DisableZoneAwarenessFor []string
+	// List of user agents to enable zone-awareness for.
+	ZoneAwareAgents []string
 }
 
 func (h HTTPHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -89,8 +89,8 @@ func (h HTTPHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (h HTTPHandler) disableZoneAwarenessFor(userAgent string) bool {
-	for _, ua := range h.DisableZoneAwarenessFor {
+func (h HTTPHandler) enableZoneAwarenessFor(userAgent string) bool {
+	for _, ua := range h.ZoneAwareAgents {
 		if ua == userAgent {
 			return true
 		}
@@ -109,7 +109,7 @@ func (h HTTPHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	topic := query.Get("topic")
 
-	if _, all := query["all"]; !all && !h.disableZoneAwarenessFor(req.UserAgent()) {
+	if _, all := query["all"]; !all && h.enableZoneAwarenessFor(req.UserAgent()) {
 		if xForwardedFor := req.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
 			ctx = WithClientIP(ctx, net.ParseIP(xForwardedFor))
 		}

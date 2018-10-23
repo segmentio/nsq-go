@@ -24,6 +24,7 @@ func main() {
 		CacheTimeout    time.Duration     `conf:"cache-timeout"     help:"TTL of cached service endpoints."`
 		Topology        map[string]string `conf:"topology"          help:"Map of subnets to logical zone names used for zone-aware topics."`
 		ZoneAwareTopics []string          `conf:"zone-aware-topics" help:"List of topics for which zone restrictions are applied."`
+		NoZoneAwareFor  []string          `conf:"no-zone-aware-for" help:"List of user agents to disable zone restrictions for."`
 	}{
 		Bind:         ":4181",
 		CacheTimeout: 1 * time.Minute,
@@ -101,7 +102,8 @@ func main() {
 	}
 
 	var handler http.Handler = nsqlookup.HTTPHandler{
-		Engine: proxy,
+		Engine:                  proxy,
+		DisableZoneAwarenessFor: config.NoZoneAwareFor,
 	}
 
 	if config.Verbose {

@@ -46,6 +46,9 @@ type HTTPHandler struct {
 	// EngineTimeout should be set to the maximum duration allowed for engine
 	// operations.
 	EngineTimeout time.Duration
+
+	// List of user agents to disable zone-awareness for.
+	DisableZoneAwarenessFor []string
 }
 
 func (h HTTPHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -86,6 +89,15 @@ func (h HTTPHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (h HTTPHandler) disableZoneAwarenessFor(userAgent string) bool {
+	for _, ua := range h.DisableZoneAwarenessFor {
+		if ua == userAgent {
+			return true
+		}
+	}
+	return false
+}
+
 func (h HTTPHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		h.sendMethodNotAllowed(res)
@@ -97,7 +109,7 @@ func (h HTTPHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	topic := query.Get("topic")
 
-	if query.Get("all") == "" {
+	if _, all := query["all"]; !all && !h.disableZoneAwarenessFor(req.UserAgent()) {
 		if xForwardedFor := req.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
 			ctx = WithClientIP(ctx, net.ParseIP(xForwardedFor))
 		}

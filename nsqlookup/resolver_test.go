@@ -6,43 +6,50 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
-	"time"
 )
 
-func TestResolveServers(t *testing.T) {
+func TestLocalRegistry(t *testing.T) {
 	tests := []struct {
-		servers Servers
-		results []string
+		registry LocalRegistry
+		results  []string
 	}{
 		{
-			servers: nil,
-			results: nil,
+			registry: nil,
+			results:  nil,
 		},
+
 		{
-			servers: Servers{},
-			results: nil,
+			registry: LocalRegistry{},
+			results:  nil,
 		},
+
 		{
-			servers: Servers{"A"},
-			results: []string{"A"},
-		},
-		{
-			servers: Servers{"A", "B"},
-			results: []string{"A", "B"},
-		},
-		{
-			servers: Servers{"A", "B", "C"},
-			results: []string{"A", "B", "C"},
+			registry: LocalRegistry{
+				"A": {
+					"127.0.0.1:1000",
+					"127.0.0.1:1001",
+					"127.0.0.1:1002",
+				},
+				"B": {
+					"127.0.0.1:1003",
+					"127.0.0.1:1004",
+					"127.0.0.1:1005",
+				},
+			},
+			results: []string{
+				"127.0.0.1:1000",
+				"127.0.0.1:1001",
+				"127.0.0.1:1002",
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(strings.Join(test.results, ","), func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
-			res, err := test.servers.Resolve(ctx)
+			res, _, err := test.registry.Lookup(ctx, "A")
 
 			if err != nil {
 				t.Error(err)
@@ -53,57 +60,11 @@ func TestResolveServers(t *testing.T) {
 			}
 
 			cancel()
-			_, err = test.servers.Resolve(ctx)
-			if err == nil {
+
+			if _, _, err = test.registry.Lookup(ctx, "A"); err != ctx.Err() {
 				t.Error("bad error after the context was canceled:", err)
 			}
 		})
-	}
-}
-
-func TestResolveCached(t *testing.T) {
-	servers := Servers{
-		"A",
-		"B",
-		"C",
-	}
-
-	miss := 0
-	rslv := &CachedResolver{
-		Resolver: ResolverFunc(func(ctx context.Context) ([]string, error) {
-			miss++
-			return servers.Resolve(ctx)
-		}),
-		Timeout: 10 * time.Millisecond,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	for i := 0; i != 3; i++ {
-		for j := 0; j != 10; j++ {
-			res, err := rslv.Resolve(ctx)
-
-			if err != nil {
-				t.Error(err)
-			}
-
-			if !reflect.DeepEqual(res, ([]string)(servers)) {
-				t.Error(res)
-			}
-		}
-
-		if miss != (i + 1) {
-			t.Error("too many cache misses:", miss)
-		}
-
-		// Sleep for a little while so the cache entry expires.
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	cancel()
-	_, err := rslv.Resolve(ctx)
-	if err == nil {
-		t.Error("bad error after the context was canceled:", err)
 	}
 }
 
@@ -164,13 +125,13 @@ func TestResolveConsul(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rslv := &ConsulResolver{
+	reg := &ConsulRegistry{
 		Address: server.URL,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	res, err := rslv.Resolve(ctx)
+	res, _, err := reg.Lookup(ctx, "nsqlookupd")
 	if err != nil {
 		t.Error(err)
 	}
@@ -183,27 +144,8 @@ func TestResolveConsul(t *testing.T) {
 	}
 
 	cancel()
-	_, err = rslv.Resolve(ctx)
-	if err == nil {
+
+	if _, _, err := reg.Lookup(ctx, "nsqlookupd"); err != ctx.Err() {
 		t.Error("bad error after the context was canceled:", err)
-	}
-}
-
-func TestResolveMulti(t *testing.T) {
-	rslv := MultiResolver(
-		Servers{},
-		Servers{"A"},
-		Servers{"B", "C"},
-	)
-
-	res, err := rslv.Resolve(nil)
-	sort.Strings(res)
-
-	if err != nil {
-		t.Error(err)
-	}
-
-	if !reflect.DeepEqual(res, []string{"A", "B", "C"}) {
-		t.Error(res)
 	}
 }

@@ -48,10 +48,12 @@ func newTestProxy(nodeTimeout time.Duration, tombTimeout time.Duration) *testPro
 		engines: engines,
 		servers: servers,
 		ProxyEngine: ProxyEngine{
-			Resolver: Servers{
-				servers[0].URL,
-				servers[1].URL,
-				servers[2].URL,
+			Registry: LocalRegistry{
+				"nsqlookupd": {
+					servers[0].URL,
+					servers[1].URL,
+					servers[2].URL,
+				},
 			},
 		},
 	}

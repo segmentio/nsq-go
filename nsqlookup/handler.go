@@ -92,21 +92,29 @@ func (h HTTPHandler) serveLookup(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	ctx := req.Context()
+
 	query := req.URL.Query()
 	topic := query.Get("topic")
+
+	if query.Get("all") == "" {
+		if xForwardedFor := req.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
+			ctx = WithClientIP(ctx, net.ParseIP(xForwardedFor))
+		}
+	}
 
 	if len(topic) == 0 {
 		h.sendResponse(res, req, 500, "MISSING_ARG_TOPIC", nil)
 		return
 	}
 
-	channels, err := h.Engine.LookupChannels(req.Context(), topic)
+	channels, err := h.Engine.LookupChannels(ctx, topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return
 	}
 
-	nodes, err := h.Engine.LookupProducers(req.Context(), topic)
+	nodes, err := h.Engine.LookupProducers(ctx, topic)
 	if err != nil {
 		h.sendInternalServerError(res, err)
 		return

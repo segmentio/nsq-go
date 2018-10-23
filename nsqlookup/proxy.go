@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,7 +19,31 @@ import (
 // they were a single entity.
 type ProxyEngine struct {
 	Transport http.RoundTripper
-	Resolver  Resolver
+	Topology  Topology
+	Registry  Registry
+	// Name of the nsqlookupd server, defaults to "nsqlookupd".
+	Nsqlookupd string
+	// List of topics for which the proxy applies zone restrictions of consumers
+	// and producers.
+	//
+	// The value may be a magic ["*"] to indicate that the proxy should apply
+	// zone awareness to all topics.
+	ZoneAwareTopics []string
+}
+
+func (p *ProxyEngine) nsqlookupd() string {
+	if p.Nsqlookupd != "" {
+		return p.Nsqlookupd
+	}
+	return "nsqlookupd"
+}
+
+func (p *ProxyEngine) lookup(ctx context.Context) ([]string, error) {
+	if p.Registry == nil {
+		return nil, ctx.Err()
+	}
+	addrs, _, err := p.Registry.Lookup(ctx, p.nsqlookupd())
+	return addrs, err
 }
 
 func (p *ProxyEngine) Close() error {
@@ -31,7 +56,8 @@ func (p *ProxyEngine) RegisterNode(ctx context.Context, node NodeInfo) (Node, er
 
 func (p *ProxyEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic string) (err error) {
 	var servers []string
-	if servers, err = p.Resolver.Resolve(ctx); err != nil {
+
+	if servers, err = p.lookup(ctx); err != nil {
 		return
 	}
 
@@ -62,7 +88,8 @@ func (p *ProxyEngine) TombstoneTopic(ctx context.Context, node NodeInfo, topic s
 
 func (p *ProxyEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo2, err error) {
 	var servers []string
-	if servers, err = p.Resolver.Resolve(ctx); err != nil {
+
+	if servers, err = p.lookup(ctx); err != nil {
 		return
 	}
 
@@ -109,9 +136,31 @@ func (p *ProxyEngine) LookupNodes(ctx context.Context) (nodes []NodeInfo2, err e
 }
 
 func (p *ProxyEngine) LookupProducers(ctx context.Context, topic string) (nodes []NodeInfo, err error) {
+	var clientIP = ClientIP(ctx)
 	var servers []string
-	if servers, err = p.Resolver.Resolve(ctx); err != nil {
+	var inZone string
+
+	if servers, err = p.lookup(ctx); err != nil {
 		return
+	}
+
+	if clientIP != nil && p.Topology != nil {
+		zoneAware := len(p.ZoneAwareTopics) == 1 && p.ZoneAwareTopics[0] == "*"
+
+		if !zoneAware {
+			for _, zoneAwareTopic := range p.ZoneAwareTopics {
+				if zoneAwareTopic == topic {
+					zoneAware = true
+					break
+				}
+			}
+		}
+
+		if zoneAware {
+			// Ignore error here, we're better off returning servers out of zone
+			// than preventing the consumers from discovering any nsqd servers.
+			inZone, _ = p.Topology.LookupIPZone(ctx, clientIP)
+		}
 	}
 
 	srvcount := len(servers)
@@ -136,6 +185,21 @@ func (p *ProxyEngine) LookupProducers(ctx context.Context, topic string) (nodes 
 		select {
 		case r := <-results:
 			for _, n := range r {
+				// When a client IP was specified and a topology configured on
+				// the proxy, check whether the address of the nsqd server is in
+				// the same zone as the client, and otherwise don't include it.
+				//
+				// Here again, the check defaults to including the nsqd server
+				// to avoid cascading failures where a zone lookup error
+				// prevents consumers from discovering nsqd servers that they
+				// should have been consuming from.
+				if inZone != "" {
+					if ip := net.ParseIP(n.BroadcastAddress); ip != nil {
+						if zone, _ := p.Topology.LookupIPZone(ctx, ip); zone != "" && zone != inZone {
+							continue
+						}
+					}
+				}
 				set[httpBroadcastAddress(n)] = n
 			}
 		case e := <-errors:
@@ -158,7 +222,8 @@ func (p *ProxyEngine) LookupProducers(ctx context.Context, topic string) (nodes 
 
 func (p *ProxyEngine) LookupTopics(ctx context.Context) (topics []string, err error) {
 	var servers []string
-	if servers, err = p.Resolver.Resolve(ctx); err != nil {
+
+	if servers, err = p.lookup(ctx); err != nil {
 		return
 	}
 
@@ -206,7 +271,8 @@ func (p *ProxyEngine) LookupTopics(ctx context.Context) (topics []string, err er
 
 func (p *ProxyEngine) LookupChannels(ctx context.Context, topic string) (channels []string, err error) {
 	var servers []string
-	if servers, err = p.Resolver.Resolve(ctx); err != nil {
+
+	if servers, err = p.lookup(ctx); err != nil {
 		return
 	}
 
@@ -260,7 +326,8 @@ func (p *ProxyEngine) LookupInfo(ctx context.Context) (info EngineInfo, err erro
 
 func (p *ProxyEngine) CheckHealth(ctx context.Context) (err error) {
 	var servers []string
-	if servers, err = p.Resolver.Resolve(ctx); err != nil {
+
+	if servers, err = p.lookup(ctx); err != nil {
 		return
 	}
 

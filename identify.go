@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -22,12 +23,18 @@ type Identify struct {
 	// UserAgent represents the type of the client, by default it is set to
 	// nsq.DefaultUserAgent.
 	UserAgent string
+
+	// MessageTimeout can bet set to configure the server-side message timeout
+	// for messages delivered to this consumer.  By default it is not sent to
+	// the server.
+	MessageTimeout time.Duration
 }
 
 type identifyBody struct {
-	ClientID  string `json:"client_id,omitempty"`
-	Hostname  string `json:"hostname,omitempty"`
-	UserAgent string `json:"user_agent,omitempty"`
+	ClientID       string `json:"client_id,omitempty"`
+	Hostname       string `json:"hostname,omitempty"`
+	UserAgent      string `json:"user_agent,omitempty"`
+	MessageTimeout int    `json:"msg_timeout,omitempty"`
 }
 
 // Name returns the name of the command in order to satisfy the Command
@@ -42,9 +49,10 @@ func (c Identify) Write(w *bufio.Writer) (err error) {
 	var data []byte
 
 	if data, err = json.Marshal(identifyBody{
-		ClientID:  c.ClientID,
-		Hostname:  c.Hostname,
-		UserAgent: c.UserAgent,
+		ClientID:       c.ClientID,
+		Hostname:       c.Hostname,
+		UserAgent:      c.UserAgent,
+		MessageTimeout: int(c.MessageTimeout / time.Millisecond),
 	}); err != nil {
 		return
 	}
@@ -75,9 +83,10 @@ func readIdentify(r *bufio.Reader) (cmd Identify, err error) {
 	}
 
 	cmd = Identify{
-		ClientID:  body.ClientID,
-		Hostname:  body.Hostname,
-		UserAgent: body.UserAgent,
+		ClientID:       body.ClientID,
+		Hostname:       body.Hostname,
+		UserAgent:      body.UserAgent,
+		MessageTimeout: time.Millisecond * time.Duration(body.MessageTimeout),
 	}
 	return
 }

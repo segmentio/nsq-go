@@ -165,7 +165,9 @@ func (c *Consumer) run() {
 			c.close()
 			c.join.Wait()
 			// drain conns
+			log.Println("requeueing remaining messages")
 			for m := range c.msgs {
+				log.Printf("requeueing %+v\n", m.ID.String())
 				m.Requeue(NoTimeout)
 			}
 			return

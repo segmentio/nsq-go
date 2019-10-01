@@ -167,6 +167,7 @@ func (c *Consumer) run() {
 
 		case <-c.done:
 			c.close()
+			log.Println("awaiting waitgroup mutex")
 			c.join.Wait()
 			c.mtx.Lock()
 			// drain and requeue any in-flight messages
@@ -253,8 +254,8 @@ func (c *Consumer) closeConn(addr string) {
 		cmdChan := c.conns[addr]
 		delete(c.conns, addr)
 		closeCommand(cmdChan)
-		c.join.Done()
 	}
+	c.join.Done()
 	c.mtx.Unlock()
 }
 

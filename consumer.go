@@ -255,6 +255,7 @@ func (c *Consumer) closeConn(addr string) {
 		delete(c.conns, addr)
 		closeCommand(cmdChan)
 	} else {
+		c.join.Done()
 		log.Println("we're in shutdown")
 	}
 	c.join.Done()

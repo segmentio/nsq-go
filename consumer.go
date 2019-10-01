@@ -164,7 +164,6 @@ func (c *Consumer) run() {
 		case <-c.done:
 			c.close()
 			c.join.Wait()
-			// drain conns
 			return
 		}
 	}
@@ -221,6 +220,7 @@ func (c *Consumer) close() {
 		sendCommand(cmdChan, Cls{})
 	}
 
+	// drain and requeue any in-flight messages
 	log.Println("requeueing remaining messages")
 	for m := range c.msgs {
 		log.Printf("requeueing %+v\n", m.ID.String())

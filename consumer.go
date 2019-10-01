@@ -33,7 +33,8 @@ type Consumer struct {
 	// Shared state of the consumer.
 	mtx   sync.Mutex
 	join  sync.WaitGroup
-	conns map[string](chan<- Command)
+	//conns map[string](chan<- Command)
+	conns map[string]ConnMeta
 	shutdown bool
 }
 
@@ -47,6 +48,11 @@ type ConsumerConfig struct {
 	DialTimeout  time.Duration
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
+}
+
+type ConnMeta struct {
+	CmdChan chan<- Command
+	Con *Conn
 }
 
 // validate ensures that this configuration is well-formed.
@@ -103,8 +109,7 @@ func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
 		dialTimeout:  config.DialTimeout,
 		readTimeout:  config.ReadTimeout,
 		writeTimeout: config.WriteTimeout,
-
-		conns: make(map[string](chan<- Command)),
+		conns: make(map[string]ConnMeta),
 	}
 
 	return
@@ -175,9 +180,10 @@ func (c *Consumer) run() {
 				log.Printf("requeueing %+v\n", m.ID.String())
 				sendCommand(m.cmdChan, Req{MessageID:m.ID})
 			}
-			for addr, cmdChan := range c.conns {
+			for addr, cm := range c.conns {
 				delete(c.conns, addr)
-				closeCommand(cmdChan)
+				closeCommand(cm.CmdChan)
+				cm.Con.Close()
 			}
 			return
 		}
@@ -218,9 +224,16 @@ func (c *Consumer) pulse() (err error) {
 		if _, exists := c.conns[addr]; !exists {
 			// '+ 2' for the initial identify and subscribe commands.
 			cmdChan := make(chan Command, c.maxInFlight+2)
-			c.conns[addr] = cmdChan
+			conn, err := c.getConn(addr)
+			if err != nil {
+				log.Printf("failed to connect to %s: %s", addr, err)
+				continue
+			}
+			cm := ConnMeta{CmdChan:cmdChan, Con:conn}
+			c.conns[addr] = cm
 			c.join.Add(1)
-			go c.runConn(addr, cmdChan)
+			go c.runConn(conn, addr, cmdChan)
+			go c.writeConn(conn, cmdChan)
 		}
 	}
 
@@ -230,18 +243,9 @@ func (c *Consumer) pulse() (err error) {
 
 func (c *Consumer) close() {
 	c.mtx.Lock()
-
-	for _, cmdChan := range c.conns {
-		sendCommand(cmdChan, Cls{})
+	for _, cm := range c.conns {
+		sendCommand(cm.CmdChan, Cls{})
 	}
-
-	//// drain and requeue any in-flight messages
-	//log.Println("requeueing remaining messages")
-	//for m := range c.msgs {
-	//	log.Printf("requeueing %+v\n", m.ID.String())
-	//	sendCommand(m.cmdChan, Req{MessageID:m.ID})
-	//}
-
 	c.mtx.Unlock()
 	return
 }
@@ -249,34 +253,29 @@ func (c *Consumer) close() {
 func (c *Consumer) closeConn(addr string) {
 	log.Println("in closeConn")
 	c.mtx.Lock()
+	cm := c.conns[addr]
 	if !c.shutdown {
 		log.Println("we're not in shutdown")
-		cmdChan := c.conns[addr]
 		delete(c.conns, addr)
-		closeCommand(cmdChan)
-	} else {
-		c.join.Done()
-		log.Println("we're in shutdown")
+		closeCommand(cm.CmdChan)
+		cm.Con.Close()
 	}
-	c.join.Done()
-	log.Println("decremented wg")
 	c.mtx.Unlock()
 }
 
-func (c *Consumer) runConn(addr string, cmdChan chan Command) {
-	defer c.closeConn(addr)
-
-	var conn *Conn
-	var err error
-	var rdy int
-
-	if conn, err = DialTimeout(addr, c.dialTimeout); err != nil {
-		log.Printf("failed to connect to %s: %s", addr, err)
-		return
+func (c *Consumer) getConn(addr string) (*Conn, error){
+	conn, err := DialTimeout(addr, c.dialTimeout)
+	if err != nil {
+		return nil, err
 	}
 
-	c.join.Add(1)
-	go c.writeConn(conn, cmdChan)
+	return conn, nil
+}
+
+func (c *Consumer) runConn(conn *Conn, addr string, cmdChan chan Command) {
+	defer c.closeConn(addr)
+	defer c.join.Done()
+	var rdy int
 
 	sendCommand(cmdChan, c.identify)
 	sendCommand(cmdChan, Sub{Topic: c.topic, Channel: c.channel})
@@ -329,10 +328,6 @@ func (c *Consumer) runConn(addr string, cmdChan chan Command) {
 }
 
 func (c *Consumer) writeConn(conn *Conn, cmdChan chan Command) {
-	defer c.join.Done()
-	defer conn.Close()
-	defer closeCommand(cmdChan)
-
 	for cmd := range cmdChan {
 		if err := c.writeConnCommand(conn, cmd); err != nil {
 			log.Print(err)

@@ -249,13 +249,18 @@ func (c *Consumer) close() {
 }
 
 func (c *Consumer) closeConn(addr string) {
+	log.Println("in closeConn")
 	c.mtx.Lock()
 	if !c.shutdown {
+		log.Println("we're not in shutdown")
 		cmdChan := c.conns[addr]
 		delete(c.conns, addr)
 		closeCommand(cmdChan)
+	} else {
+		log.Println("we're in shutdown")
 	}
 	c.join.Done()
+	log.Println("decremented wg")
 	c.mtx.Unlock()
 }
 

@@ -169,7 +169,6 @@ func (c *Consumer) run() {
 			c.close()
 			log.Println("awaiting waitgroup mutex")
 			c.join.Wait()
-			c.mtx.Lock()
 			// drain and requeue any in-flight messages
 			log.Println("requeueing remaining messages")
 			for m := range c.msgs {
@@ -180,7 +179,6 @@ func (c *Consumer) run() {
 				delete(c.conns, addr)
 				closeCommand(cmdChan)
 			}
-			c.mtx.Unlock()
 			return
 		}
 	}

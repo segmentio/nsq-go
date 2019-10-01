@@ -34,6 +34,7 @@ type Consumer struct {
 	mtx   sync.Mutex
 	join  sync.WaitGroup
 	conns map[string](chan<- Command)
+	shutdown bool
 }
 
 type ConsumerConfig struct {
@@ -142,6 +143,9 @@ func (c *Consumer) Messages() <-chan Message {
 }
 
 func (c *Consumer) stop() {
+	c.mtx.Lock()
+	c.shutdown = true
+	c.mtx.Unlock()
 	close(c.done)
 }
 
@@ -164,6 +168,18 @@ func (c *Consumer) run() {
 		case <-c.done:
 			c.close()
 			c.join.Wait()
+			c.mtx.Lock()
+			// drain and requeue any in-flight messages
+			log.Println("requeueing remaining messages")
+			for m := range c.msgs {
+				log.Printf("requeueing %+v\n", m.ID.String())
+				sendCommand(m.cmdChan, Req{MessageID:m.ID})
+			}
+			for addr, cmdChan := range c.conns {
+				delete(c.conns, addr)
+				closeCommand(cmdChan)
+			}
+			c.mtx.Unlock()
 			return
 		}
 	}
@@ -220,12 +236,12 @@ func (c *Consumer) close() {
 		sendCommand(cmdChan, Cls{})
 	}
 
-	// drain and requeue any in-flight messages
-	log.Println("requeueing remaining messages")
-	for m := range c.msgs {
-		log.Printf("requeueing %+v\n", m.ID.String())
-		sendCommand(m.cmdChan, Req{MessageID:m.ID})
-	}
+	//// drain and requeue any in-flight messages
+	//log.Println("requeueing remaining messages")
+	//for m := range c.msgs {
+	//	log.Printf("requeueing %+v\n", m.ID.String())
+	//	sendCommand(m.cmdChan, Req{MessageID:m.ID})
+	//}
 
 	c.mtx.Unlock()
 	return
@@ -233,11 +249,13 @@ func (c *Consumer) close() {
 
 func (c *Consumer) closeConn(addr string) {
 	c.mtx.Lock()
-	cmdChan := c.conns[addr]
-	delete(c.conns, addr)
+	if !c.shutdown {
+		cmdChan := c.conns[addr]
+		delete(c.conns, addr)
+		closeCommand(cmdChan)
+		c.join.Done()
+	}
 	c.mtx.Unlock()
-	c.join.Done()
-	closeCommand(cmdChan)
 }
 
 func (c *Consumer) runConn(addr string, cmdChan chan Command) {

@@ -1,6 +1,7 @@
 package nsq
 
 import (
+	"github.com/segmentio/api-go/.vendor-new/github.com/segmentio/nsq-go"
 	"io"
 	"log"
 	"net"
@@ -164,6 +165,10 @@ func (c *Consumer) run() {
 		case <-c.done:
 			c.close()
 			c.join.Wait()
+			// drain conns
+			for m := range c.msgs {
+				m.Requeue(nsq.NoTimeout)
+			}
 			return
 		}
 	}

@@ -34,7 +34,6 @@ type Consumer struct {
 	mtx  sync.Mutex
 	join sync.WaitGroup
 	shutJoin sync.WaitGroup
-	//conns map[string](chan<- Command)
 	conns    map[string]ConnMeta
 	shutdown bool
 }
@@ -51,6 +50,7 @@ type ConsumerConfig struct {
 	WriteTimeout time.Duration
 }
 
+// Helper struct to maintain a Conn and its associated Command channel
 type ConnMeta struct {
 	CmdChan chan<- Command
 	Con     *Conn
@@ -148,12 +148,19 @@ func (c *Consumer) Messages() <-chan Message {
 	return c.msgs
 }
 
+// stop kicks off an orderly shutdown of the consumer.
 func (c *Consumer) stop() {
+	// We add 1 to the shutJoin WaitGroup to block until our Consumer.run() routine has completed.
+	// This ensures that we properly cleanup and requeue and in-flight messages before closing
+	// connections and returning.
 	c.shutJoin.Add(1)
+	// Lock the state mutex and set shutdown to true.
 	c.mtx.Lock()
 	c.shutdown = true
 	c.mtx.Unlock()
+	// Kick off the shutdown logic in our Consumer.run() to initiate the <-c.done case
 	close(c.done)
+	// Await Consumer.run() <-c.done to complete
 	c.shutJoin.Wait()
 }
 
@@ -175,31 +182,55 @@ func (c *Consumer) run() {
 
 		case <-c.done:
 			log.Println("Consumer initiating shutdown sequence")
+			// Send a CLS to all Cmd Channels for all connections
 			c.close()
 			log.Println("awaiting connection waitgroup")
+			// Wait for all runConn routines to return
 			c.join.Wait()
-			// drain and requeue any in-flight messages
+			// At this point all runConn routines have returned, therefore we know
+			// we won't be receiving and new messages from nsqd servers. Now we can
+			// begin the processes of draining any in-flight messages and issuing a
+			// REQ command for each message.
 			log.Println("draining and requeueing remaining in-flight messages")
+			// drain and requeue any in-flight messages
 			c.drainRemaining()
 			log.Println("closing and cleaning up connections")
+			// Cleanup remaining connections
 			c.mtx.Lock()
 			for addr, cm := range c.conns {
 				delete(c.conns, addr)
+				// At this point we have drained all Messages from our main msgs channel and
+				// sent them REQ commands for each on their associated CmdChan. However, we can not simply just
+				// close the CmdChan for each connection yet. These channels are buffered and if
+				// we simply call closeCommand(cm.CmdChan) here there is a race, as the writeConn routines
+				// may not have finished processing all the REQ commands.
+				// Therefore we check the length of the channel and await for it to reach 0. If for some reason
+				// it fails to drain after a number of attempts we continue on and allow the messages to simply timeout
+				// and be reqeueued by the nsqd server.
+				start := time.Now()
 				for len(cm.CmdChan) > 0 {
-					log.Println("awaiting for write channel to flush requeues")
-					time.Sleep(time.Second)
+					log.Println("awaiting for write channel to flush any requeue commands")
+					time.Sleep(time.Millisecond * 500)
+					// If we've tried to allow the messages to flush and they've failed after
+					// 5 seconds we give up and let the nsqd instance timeout and requeue for us.
+					if time.Now().Sub(start) > time.Second * 5 {
+						log.Printf("failed to requeue %d messages during orderly shutdown, allow them to timeout and requeue", len(cm.CmdChan))
+						break
+					}
 				}
 				closeCommand(cm.CmdChan)
 				cm.Con.Close()
 			}
 			c.mtx.Unlock()
 			log.Println("Consumer exiting run")
+			// Signal to the stop() function that orderly shutdown is complete
 			c.shutJoin.Done()
 			return
 		}
 	}
 }
 
+//
 func (c *Consumer) drainRemaining() {
 	for {
 		select {
@@ -211,6 +242,7 @@ func (c *Consumer) drainRemaining() {
 			log.Printf("requeueing %+v\n", m.ID.String())
 			sendCommand(m.cmdChan, Req{MessageID: m.ID})
 		default:
+			log.Printf("no messages to drain and requeue")
 			return
 		}
 	}
@@ -280,10 +312,17 @@ func (c *Consumer) close() {
 func (c *Consumer) closeConn(addr string) {
 	c.mtx.Lock()
 	cm := c.conns[addr]
+	// If we're not in shutdown mode we want to properly delete and close
+	// this connection. This could happen for any number of reasons including
+	// nsq servers being removed or intermittent network failure. However, if we
+	// are in shutdown mode, we know that an orderly shutdown is in process and we
+	// wish to retain these connections while we cleanup. This will allow the Consumer.run()
+	// routine the opportunity to drain and requeue remaining in-flight messages.
+	// The Consumer.run() routine will then handle deleting, and closing the channels and
+	// connections for us rather than doing it here.
 	if !c.shutdown {
 		delete(c.conns, addr)
 		closeCommand(cm.CmdChan)
-		log.Println("closing socket")
 		cm.Con.Close()
 	}
 	c.mtx.Unlock()

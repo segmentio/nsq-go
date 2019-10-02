@@ -31,10 +31,10 @@ type Consumer struct {
 	writeTimeout time.Duration
 
 	// Shared state of the consumer.
-	mtx   sync.Mutex
-	join  sync.WaitGroup
+	mtx  sync.Mutex
+	join sync.WaitGroup
 	//conns map[string](chan<- Command)
-	conns map[string]ConnMeta
+	conns    map[string]ConnMeta
 	shutdown bool
 }
 
@@ -52,7 +52,7 @@ type ConsumerConfig struct {
 
 type ConnMeta struct {
 	CmdChan chan<- Command
-	Con *Conn
+	Con     *Conn
 }
 
 // validate ensures that this configuration is well-formed.
@@ -109,7 +109,7 @@ func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
 		dialTimeout:  config.DialTimeout,
 		readTimeout:  config.ReadTimeout,
 		writeTimeout: config.WriteTimeout,
-		conns: make(map[string]ConnMeta),
+		conns:        make(map[string]ConnMeta),
 	}
 
 	return
@@ -172,13 +172,28 @@ func (c *Consumer) run() {
 
 		case <-c.done:
 			c.close()
-			log.Println("awaiting waitgroup mutex")
+			log.Println("shutdown awaiting waitgroup")
 			c.join.Wait()
 			// drain and requeue any in-flight messages
-			log.Println("requeueing remaining messages")
-			for m := range c.msgs {
-				log.Printf("requeueing %+v\n", m.ID.String())
-				sendCommand(m.cmdChan, Req{MessageID:m.ID})
+			log.Println("attempting to requeue and remaining in-flight messages")
+			drained := false
+			for {
+				if !drained {
+					select {
+					case m, ok := <-c.msgs:
+						// we have to check ok to see if c.msgs is closed because it's
+						// exposed via the API and someone could have closed it, welp!
+						if !ok {
+							drained = true
+						} else {
+							log.Printf("requeueing %+v\n", m.ID.String())
+							sendCommand(m.cmdChan, Req{MessageID: m.ID})
+						}
+					default:
+						drained = true
+					}
+				}
+				break
 			}
 			for addr, cm := range c.conns {
 				delete(c.conns, addr)
@@ -229,7 +244,7 @@ func (c *Consumer) pulse() (err error) {
 				log.Printf("failed to connect to %s: %s", addr, err)
 				continue
 			}
-			cm := ConnMeta{CmdChan:cmdChan, Con:conn}
+			cm := ConnMeta{CmdChan: cmdChan, Con: conn}
 			c.conns[addr] = cm
 			c.join.Add(1)
 			go c.runConn(conn, addr, cmdChan)
@@ -251,11 +266,9 @@ func (c *Consumer) close() {
 }
 
 func (c *Consumer) closeConn(addr string) {
-	log.Println("in closeConn")
 	c.mtx.Lock()
 	cm := c.conns[addr]
 	if !c.shutdown {
-		log.Println("we're not in shutdown")
 		delete(c.conns, addr)
 		closeCommand(cm.CmdChan)
 		cm.Con.Close()
@@ -263,7 +276,7 @@ func (c *Consumer) closeConn(addr string) {
 	c.mtx.Unlock()
 }
 
-func (c *Consumer) getConn(addr string) (*Conn, error){
+func (c *Consumer) getConn(addr string) (*Conn, error) {
 	conn, err := DialTimeout(addr, c.dialTimeout)
 	if err != nil {
 		return nil, err

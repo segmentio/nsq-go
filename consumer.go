@@ -33,6 +33,7 @@ type Consumer struct {
 	// Shared state of the consumer.
 	mtx  sync.Mutex
 	join sync.WaitGroup
+	shutJoin sync.WaitGroup
 	//conns map[string](chan<- Command)
 	conns    map[string]ConnMeta
 	shutdown bool
@@ -148,10 +149,12 @@ func (c *Consumer) Messages() <-chan Message {
 }
 
 func (c *Consumer) stop() {
+	c.shutJoin.Add(1)
 	c.mtx.Lock()
 	c.shutdown = true
 	c.mtx.Unlock()
 	close(c.done)
+	c.shutJoin.Wait()
 }
 
 func (c *Consumer) run() {
@@ -171,35 +174,41 @@ func (c *Consumer) run() {
 			}
 
 		case <-c.done:
+			log.Println("Consumer initiating shutdown sequence")
 			c.close()
-			log.Println("shutdown awaiting waitgroup")
+			log.Println("awaiting connection waitgroup")
 			c.join.Wait()
 			// drain and requeue any in-flight messages
-			log.Println("attempting to requeue and remaining in-flight messages")
-			drained := false
-			for {
-				if !drained {
-					select {
-					case m, ok := <-c.msgs:
-						// we have to check ok to see if c.msgs is closed because it's
-						// exposed via the API and someone could have closed it, welp!
-						if !ok {
-							drained = true
-						} else {
-							log.Printf("requeueing %+v\n", m.ID.String())
-							sendCommand(m.cmdChan, Req{MessageID: m.ID})
-						}
-					default:
-						drained = true
-					}
-				}
-				break
-			}
+			log.Println("draining and requeueing remaining in-flight messages")
+			c.drainRemaining()
+			log.Println("closing and cleaning up connections")
 			for addr, cm := range c.conns {
 				delete(c.conns, addr)
+				for len(cm.CmdChan) > 0 {
+					log.Println("awaiting for write channel to flush requeues")
+					time.Sleep(time.Second)
+				}
 				closeCommand(cm.CmdChan)
 				cm.Con.Close()
 			}
+			log.Println("Consumer exiting run")
+			c.shutJoin.Done()
+			return
+		}
+	}
+}
+
+func (c *Consumer) drainRemaining() {
+	for {
+		select {
+		case m, ok := <-c.msgs:
+			if !ok {
+				log.Printf("message channel closed, nothing to drain")
+				return
+			}
+			log.Printf("requeueing %+v\n", m.ID.String())
+			sendCommand(m.cmdChan, Req{MessageID: m.ID})
+		default:
 			return
 		}
 	}
@@ -257,6 +266,7 @@ func (c *Consumer) pulse() (err error) {
 }
 
 func (c *Consumer) close() {
+	log.Println("sending CLS to all command channels")
 	c.mtx.Lock()
 	for _, cm := range c.conns {
 		sendCommand(cm.CmdChan, Cls{})
@@ -271,7 +281,10 @@ func (c *Consumer) closeConn(addr string) {
 	if !c.shutdown {
 		delete(c.conns, addr)
 		closeCommand(cm.CmdChan)
+		log.Println("closing socket")
 		cm.Con.Close()
+	} else {
+		log.Println("in closeConn, we're in shutdown")
 	}
 	c.mtx.Unlock()
 }
@@ -312,6 +325,7 @@ func (c *Consumer) runConn(conn *Conn, addr string, cmdChan chan Command) {
 		switch f := frame.(type) {
 		case Message:
 			f.cmdChan = cmdChan
+			log.Printf("adding message %s\n", string(f.Body))
 			c.msgs <- f
 			rdy--
 
@@ -322,6 +336,7 @@ func (c *Consumer) runConn(conn *Conn, addr string, cmdChan chan Command) {
 				sendCommand(cmdChan, Nop{})
 
 			case CloseWait:
+				log.Println("closewait received exiting runConn")
 				return
 
 			default:

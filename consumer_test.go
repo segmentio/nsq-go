@@ -130,9 +130,96 @@ func TestRequeue(t *testing.T) {
 
 	consumer.Stop()
 
-	// Make sure the channel gets closed at some point.
+	//Make sure the channel gets closed at some point.
 	for msg := range consumer.Messages() {
 		t.Error("unexpected message:", msg)
 		msg.Finish()
 	}
+}
+
+func TestDrainAndRequeueOnStop(t *testing.T) {
+	p, _ := NewProducer(ProducerConfig{
+		Topic:        "test-stop-requeue",
+		Address:      "localhost:4150",
+		DialTimeout:  time.Second * 60,
+		ReadTimeout:  time.Second * 60,
+		WriteTimeout: time.Second * 60,
+	})
+
+	p.Start()
+	for i := 0; i < 10; i++ {
+		if err := p.Publish([]byte(strconv.Itoa(i))); err != nil {
+			t.Error(err)
+			return
+		}
+	}
+
+	consumer, err := NewConsumer(ConsumerConfig{
+		Topic:        "test-stop-requeue",
+		Channel:      "foo",
+		Address:      "localhost:4150",
+		DialTimeout:  time.Second * 60,
+		ReadTimeout:  time.Second * 60,
+		WriteTimeout: time.Second * 60,
+		MaxInFlight: 10,
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	consumer.Start()
+
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+
+	// Consume 5 messages and then stop the client
+	// to incur a requeue on remaining in flight
+	msgNum := 0
+	for msgNum < 5 {
+		select {
+		case msg := <-consumer.Messages():
+			msg.Finish()
+			fmt.Printf("handling message %s\n", string(msg.Body))
+			msgNum++
+		case <-deadline.C:
+			t.Error("timeout")
+			return
+		}
+	}
+
+	consumer.Stop()
+
+
+	consumer2, _ := NewConsumer(ConsumerConfig{
+		Topic:        "test-stop-requeue",
+		Channel:      "foo",
+		Address:      "localhost:4150",
+		DialTimeout:  time.Second * 60,
+		ReadTimeout:  time.Second * 60,
+		WriteTimeout: time.Second * 60,
+		MaxInFlight: 100,
+	})
+
+	deadline = time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+
+	consumer2.Start()
+
+	msgNum = 5
+	for msgNum < 10 {
+		select {
+		case msg := <-consumer2.Messages():
+			if s := string(msg.Body); s != strconv.Itoa(msgNum) {
+				t.Error("invalid message body:", s)
+			}
+			msg.Finish()
+			msgNum++
+		case <-deadline.C:
+			t.Error("timeout")
+			return
+		}
+	}
+
+	consumer2.Stop()
 }

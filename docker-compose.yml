@@ -40,10 +40,10 @@ services:
     image: nsqio/nsq:v0.3.8
     command: >
       /nsqd
-      -broadcast-address localhost:4150
-      -lookupd-tcp-address nsqlookupd-1:4160
-      -lookupd-tcp-address nsqlookupd-2:4160
-      -lookupd-tcp-address nsqlookupd-3:4160
+#      -broadcast-address nsqd-1:4150
+#      -lookupd-tcp-address nsqlookupd-1:4160
+#      -lookupd-tcp-address nsqlookupd-2:4160
+#      -lookupd-tcp-address nsqlookupd-3:4160
     ports:
       - 4150:4150
       - 4151:4151
@@ -83,3 +83,11 @@ services:
       - nsqlookupd-1
       - nsqlookupd-2
       - nsqlookupd-3
+
+  nsqdadmin:
+    image: nsqio/nsq
+    command: /nsqadmin --nsqd-http-address nsqd-1:4151
+    ports:
+      - 4171:4171
+    depends_on:
+      - nsqd-1

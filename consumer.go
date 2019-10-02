@@ -182,6 +182,7 @@ func (c *Consumer) run() {
 			log.Println("draining and requeueing remaining in-flight messages")
 			c.drainRemaining()
 			log.Println("closing and cleaning up connections")
+			c.mtx.Lock()
 			for addr, cm := range c.conns {
 				delete(c.conns, addr)
 				for len(cm.CmdChan) > 0 {
@@ -191,6 +192,7 @@ func (c *Consumer) run() {
 				closeCommand(cm.CmdChan)
 				cm.Con.Close()
 			}
+			c.mtx.Unlock()
 			log.Println("Consumer exiting run")
 			c.shutJoin.Done()
 			return
@@ -283,8 +285,6 @@ func (c *Consumer) closeConn(addr string) {
 		closeCommand(cm.CmdChan)
 		log.Println("closing socket")
 		cm.Con.Close()
-	} else {
-		log.Println("in closeConn, we're in shutdown")
 	}
 	c.mtx.Unlock()
 }
@@ -325,7 +325,6 @@ func (c *Consumer) runConn(conn *Conn, addr string, cmdChan chan Command) {
 		switch f := frame.(type) {
 		case Message:
 			f.cmdChan = cmdChan
-			log.Printf("adding message %s\n", string(f.Body))
 			c.msgs <- f
 			rdy--
 

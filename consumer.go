@@ -230,7 +230,8 @@ func (c *Consumer) run() {
 	}
 }
 
-//
+// drainRemaining takes any remaining in-flight messages from the Consumer.msgs
+// channel and issues a REQ command for each.
 func (c *Consumer) drainRemaining() {
 	for {
 		select {

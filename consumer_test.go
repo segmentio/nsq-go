@@ -190,6 +190,11 @@ func TestDrainAndRequeueOnStop(t *testing.T) {
 
 	consumer.Stop()
 
+	//Make sure the channel gets closed at some point.
+	for msg := range consumer.Messages() {
+		t.Error("unexpected message:", msg)
+		msg.Finish()
+	}
 
 	consumer2, _ := NewConsumer(ConsumerConfig{
 		Topic:        "test-stop-requeue",
@@ -222,4 +227,10 @@ func TestDrainAndRequeueOnStop(t *testing.T) {
 	}
 
 	consumer2.Stop()
+
+	//Make sure the channel gets closed at some point.
+	for msg := range consumer2.Messages() {
+		t.Error("unexpected message:", msg)
+		msg.Finish()
+	}
 }

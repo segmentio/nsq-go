@@ -31,8 +31,8 @@ type Consumer struct {
 	writeTimeout time.Duration
 
 	// Shared state of the consumer.
-	mtx  sync.Mutex
-	join sync.WaitGroup
+	mtx      sync.Mutex
+	join     sync.WaitGroup
 	shutJoin sync.WaitGroup
 	conns    map[string]ConnMeta
 	shutdown bool
@@ -148,7 +148,7 @@ func (c *Consumer) Messages() <-chan Message {
 	return c.msgs
 }
 
-// stop kicks off an orderly shutdown of the consumer.
+// stop kicks off an orderly shutdown of the Consumer.
 func (c *Consumer) stop() {
 	// We add 1 to the shutJoin WaitGroup to block until our Consumer.run() routine has completed.
 	// This ensures that we properly cleanup and requeue and in-flight messages before closing
@@ -213,7 +213,7 @@ func (c *Consumer) run() {
 					time.Sleep(time.Millisecond * 500)
 					// If we've tried to allow the messages to flush and they've failed after
 					// 5 seconds we give up and let the nsqd instance timeout and requeue for us.
-					if time.Now().Sub(start) > time.Second * 5 {
+					if time.Now().Sub(start) > time.Second*5 {
 						log.Printf("failed to requeue %d messages during orderly shutdown, allow them to timeout and requeue", len(cm.CmdChan))
 						break
 					}

@@ -29,6 +29,7 @@ type Consumer struct {
 	dialTimeout  time.Duration
 	readTimeout  time.Duration
 	writeTimeout time.Duration
+	drainTimeout time.Duration
 
 	// Shared state of the consumer.
 	mtx      sync.Mutex
@@ -48,6 +49,7 @@ type ConsumerConfig struct {
 	DialTimeout  time.Duration
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
+	DrainTimeout time.Duration
 }
 
 // Helper struct to maintain a Conn and its associated Command channel
@@ -87,6 +89,9 @@ func (c *ConsumerConfig) defaults() {
 	if c.WriteTimeout == 0 {
 		c.WriteTimeout = DefaultWriteTimeout
 	}
+	if c.DrainTimeout == 0 {
+		c.DrainTimeout = DefaultDrainTimeout
+	}
 }
 
 // NewConsumer configures a new consumer instance.
@@ -110,6 +115,7 @@ func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
 		dialTimeout:  config.DialTimeout,
 		readTimeout:  config.ReadTimeout,
 		writeTimeout: config.WriteTimeout,
+		drainTimeout: config.DrainTimeout,
 		conns:        make(map[string]ConnMeta),
 	}
 
@@ -207,16 +213,17 @@ func (c *Consumer) run() {
 				// Therefore we check the length of the channel and await for it to reach 0. If for some reason
 				// it fails to drain after a number of attempts we continue on and allow the messages to simply timeout
 				// and be reqeueued by the nsqd server.
-				start := time.Now()
+				attempts := 0
 				for len(cm.CmdChan) > 0 {
-					log.Println("awaiting for write channel to flush any requeue commands")
-					time.Sleep(time.Millisecond * 500)
 					// If we've tried to allow the messages to flush and they've failed after
-					// 5 seconds we give up and let the nsqd instance timeout and requeue for us.
-					if time.Now().Sub(start) > time.Second*5 {
+					// 3 attempts we give up and let the nsqd instance timeout and requeue for us.
+					if attempts > 2 {
 						log.Printf("failed to requeue %d messages during orderly shutdown, allow them to timeout and requeue", len(cm.CmdChan))
 						break
 					}
+					log.Println("awaiting for write channel to flush any requeue commands")
+					time.Sleep(c.drainTimeout / 3)
+					attempts++
 				}
 				closeCommand(cm.CmdChan)
 				cm.Con.Close()

@@ -208,25 +208,22 @@ func (c *Consumer) run() {
 			for addr, cm := range c.conns {
 				delete(c.conns, addr)
 				// At this point we have drained all Messages from our main msgs channel and
-				// sent them REQ commands for each on their associated CmdChan. However, we can not simply just
+				// sent REQ commands for each on their associated CmdChan. However, we can not simply just
 				// close the CmdChan for each connection yet. These channels are buffered and if
-				// we simply call closeCommand(cm.CmdChan) here there is a race, as the writeConn routines
+				// we simply call closeCommand(cm.CmdChan) here, there is a race, as the writeConn routines
 				// may not have finished processing all the REQ commands.
 				// Therefore we check the length of the channel and await for it to reach 0. If for some reason
-				// it fails to drain after a number of attempts we continue on and allow the messages to simply timeout
+				// it fails to drain before c.drainTimeout we continue on and allow the messages to simply timeout
 				// and be reqeueued by the nsqd server.
 				go func(cm connMeta) {
-					attempts := 0
+					start := time.Now()
 					for len(cm.CmdChan) > 0 {
-						// If we've tried to allow the messages to flush and they've failed after
-						// 3 attempts we give up and let the nsqd instance timeout and requeue for us.
-						if attempts > 2 {
-							log.Printf("failed to requeue %d messages during orderly shutdown, allow them to timeout and requeue", len(cm.CmdChan))
+						if time.Now().Sub(start) > c.drainTimeout {
+							log.Println("failed to drain CmdChan for connection, closing anyway")
 							break
 						}
 						log.Println("awaiting for write channel to flush any requeue commands")
-						time.Sleep(c.drainTimeout / 3)
-						attempts++
+						time.Sleep(time.Millisecond * 500)
 					}
 					closeCommand(cm.CmdChan)
 					err := cm.Con.Close()

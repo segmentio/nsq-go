@@ -229,7 +229,10 @@ func (c *Consumer) run() {
 						attempts++
 					}
 					closeCommand(cm.CmdChan)
-					cm.Con.Close()
+					err := cm.Con.Close()
+					if err != nil {
+						log.Printf("error returned from connection close %+s", err.Error())
+					}
 					connCloseWg.Done()
 				}(cm)
 			}

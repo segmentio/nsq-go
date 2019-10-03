@@ -19,7 +19,7 @@ const (
 	DefaultLookupTimeout   = 10 * time.Second
 	DefaultMaxRetryTimeout = 10 * time.Second
 	DefaultMinRetryTimeout = 10 * time.Millisecond
-	DefaultDrainTimeout    = time.Second
+	DefaultDrainTimeout    = 10 * time.Second
 
 	NoTimeout = time.Duration(0)
 )

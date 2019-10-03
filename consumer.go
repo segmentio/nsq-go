@@ -203,6 +203,8 @@ func (c *Consumer) run() {
 			log.Println("closing and cleaning up connections")
 			// Cleanup remaining connections
 			c.mtx.Lock()
+			connCloseWg := sync.WaitGroup{}
+			connCloseWg.Add(len(c.conns))
 			for addr, cm := range c.conns {
 				delete(c.conns, addr)
 				// At this point we have drained all Messages from our main msgs channel and
@@ -228,14 +230,35 @@ func (c *Consumer) run() {
 					}
 					closeCommand(cm.CmdChan)
 					cm.Con.Close()
+					connCloseWg.Done()
 				}(cm)
 			}
 			c.mtx.Unlock()
+			success := c.await(&connCloseWg, c.drainTimeout)
+			if success {
+				log.Println("successfully flushed all connections")
+			} else {
+				log.Println("timed out awaiting connections flush and close")
+			}
 			log.Println("Consumer exiting run")
 			// Signal to the stop() function that orderly shutdown is complete
 			c.shutJoin.Done()
 			return
 		}
+	}
+}
+
+func (c *Consumer) await(wg *sync.WaitGroup, duration time.Duration) bool {
+		waitChan := make(chan struct{})
+		go func() {
+		defer close(waitChan)
+		wg.Wait()
+	}()
+		select {
+	case <-waitChan:
+		return true // completed normally
+	case <-time.After(duration):
+		return false
 	}
 }
 

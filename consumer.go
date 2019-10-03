@@ -157,7 +157,7 @@ func (c *Consumer) Messages() <-chan Message {
 // stop kicks off an orderly shutdown of the Consumer.
 func (c *Consumer) stop() {
 	// We add 1 to the shutJoin WaitGroup to block until our Consumer.run() routine has completed.
-	// This ensures that we properly cleanup and requeue and in-flight messages before closing
+	// This ensures that we properly cleanup and requeue any in-flight messages before closing
 	// connections and returning.
 	c.shutJoin.Add(1)
 	// Lock the state mutex and set shutdown to true.
@@ -193,7 +193,7 @@ func (c *Consumer) run() {
 			// Wait for all runConn routines to return
 			c.join.Wait()
 			// At this point all runConn routines have returned, therefore we know
-			// we won't be receiving and new messages from nsqd servers. Now we can
+			// we won't be receiving any new messages from nsqd servers. Now we can
 			// begin the processes of draining any in-flight messages and issuing a
 			// REQ command for each message.
 			log.Println("draining and requeueing remaining in-flight messages")

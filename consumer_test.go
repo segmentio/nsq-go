@@ -215,6 +215,7 @@ func TestDrainAndRequeueOnStop(t *testing.T) {
 	for msgNum < 10 {
 		select {
 		case msg := <-consumer2.Messages():
+			fmt.Printf("handling message %s\n", string(msg.Body))
 			if s := string(msg.Body); s != strconv.Itoa(msgNum) {
 				t.Error("invalid message body:", s)
 			}

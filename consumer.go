@@ -35,7 +35,7 @@ type Consumer struct {
 	mtx      sync.Mutex
 	join     sync.WaitGroup
 	shutJoin sync.WaitGroup
-	conns    map[string]ConnMeta
+	conns    map[string]connMeta
 	shutdown bool
 }
 
@@ -53,7 +53,7 @@ type ConsumerConfig struct {
 }
 
 // Helper struct to maintain a Conn and its associated Command channel
-type ConnMeta struct {
+type connMeta struct {
 	CmdChan chan<- Command
 	Con     *Conn
 }
@@ -116,7 +116,7 @@ func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
 		readTimeout:  config.ReadTimeout,
 		writeTimeout: config.WriteTimeout,
 		drainTimeout: config.DrainTimeout,
-		conns:        make(map[string]ConnMeta),
+		conns:        make(map[string]connMeta),
 	}
 
 	return
@@ -173,7 +173,6 @@ func (c *Consumer) stop() {
 func (c *Consumer) run() {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
-	defer close(c.msgs)
 
 	if err := c.pulse(); err != nil {
 		log.Print(err)
@@ -199,6 +198,7 @@ func (c *Consumer) run() {
 			// REQ command for each message.
 			log.Println("draining and requeueing remaining in-flight messages")
 			// drain and requeue any in-flight messages
+			close(c.msgs)
 			c.drainRemaining()
 			log.Println("closing and cleaning up connections")
 			// Cleanup remaining connections
@@ -213,20 +213,22 @@ func (c *Consumer) run() {
 				// Therefore we check the length of the channel and await for it to reach 0. If for some reason
 				// it fails to drain after a number of attempts we continue on and allow the messages to simply timeout
 				// and be reqeueued by the nsqd server.
-				attempts := 0
-				for len(cm.CmdChan) > 0 {
-					// If we've tried to allow the messages to flush and they've failed after
-					// 3 attempts we give up and let the nsqd instance timeout and requeue for us.
-					if attempts > 2 {
-						log.Printf("failed to requeue %d messages during orderly shutdown, allow them to timeout and requeue", len(cm.CmdChan))
-						break
+				go func(cm connMeta) {
+					attempts := 0
+					for len(cm.CmdChan) > 0 {
+						// If we've tried to allow the messages to flush and they've failed after
+						// 3 attempts we give up and let the nsqd instance timeout and requeue for us.
+						if attempts > 2 {
+							log.Printf("failed to requeue %d messages during orderly shutdown, allow them to timeout and requeue", len(cm.CmdChan))
+							break
+						}
+						log.Println("awaiting for write channel to flush any requeue commands")
+						time.Sleep(c.drainTimeout / 3)
+						attempts++
 					}
-					log.Println("awaiting for write channel to flush any requeue commands")
-					time.Sleep(c.drainTimeout / 3)
-					attempts++
-				}
-				closeCommand(cm.CmdChan)
-				cm.Con.Close()
+					closeCommand(cm.CmdChan)
+					cm.Con.Close()
+				}(cm)
 			}
 			c.mtx.Unlock()
 			log.Println("Consumer exiting run")
@@ -240,19 +242,9 @@ func (c *Consumer) run() {
 // drainRemaining takes any remaining in-flight messages from the Consumer.msgs
 // channel and issues a REQ command for each.
 func (c *Consumer) drainRemaining() {
-	for {
-		select {
-		case m, ok := <-c.msgs:
-			if !ok {
-				log.Printf("message channel closed, nothing to drain")
-				return
-			}
-			log.Printf("requeueing %+v\n", m.ID.String())
-			sendCommand(m.cmdChan, Req{MessageID: m.ID})
-		default:
-			log.Printf("no messages to drain and requeue")
-			return
-		}
+	for m := range c.msgs {
+		log.Printf("requeueing %+v\n", m.ID.String())
+		sendCommand(m.cmdChan, Req{MessageID: m.ID})
 	}
 }
 
@@ -295,7 +287,7 @@ func (c *Consumer) pulse() (err error) {
 				log.Printf("failed to connect to %s: %s", addr, err)
 				continue
 			}
-			cm := ConnMeta{CmdChan: cmdChan, Con: conn}
+			cm := connMeta{CmdChan: cmdChan, Con: conn}
 			c.conns[addr] = cm
 			c.join.Add(1)
 			go c.runConn(conn, addr, cmdChan)
@@ -382,7 +374,6 @@ func (c *Consumer) runConn(conn *Conn, addr string, cmdChan chan Command) {
 				sendCommand(cmdChan, Nop{})
 
 			case CloseWait:
-				log.Println("closewait received exiting runConn")
 				return
 
 			default:

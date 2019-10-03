@@ -219,7 +219,7 @@ func (c *Consumer) run() {
 					start := time.Now()
 					for len(cm.CmdChan) > 0 {
 						if time.Now().Sub(start) > c.drainTimeout {
-							log.Println("failed to drain CmdChan for connection, closing anyway")
+							log.Print("failed to drain CmdChan for connection, closing now")
 							break
 						}
 						log.Println("awaiting for write channel to flush any requeue commands")

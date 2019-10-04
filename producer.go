@@ -67,6 +67,7 @@ type Producer struct {
 // producers.
 type ProducerRequest struct {
 	Topic    string
+	Delay    time.Duration
 	Message  []byte
 	Response chan<- error
 	Deadline time.Time
@@ -157,7 +158,7 @@ func (p *Producer) Stop() {
 // Note that no retry is done internally, the producer will fail after the
 // first unsuccessful attempt to publish the message. It is the responsibility
 // of the caller to retry if necessary.
-func (p *Producer) Publish(message []byte) (err error) {
+func (p *Producer) Publish(message []byte) error {
 	return p.PublishTo(p.topic, message)
 }
 
@@ -168,7 +169,33 @@ func (p *Producer) Publish(message []byte) (err error) {
 // Note that no retry is done internally, the producer will fail after the
 // first unsuccessful attempt to publish the message. It is the responsibility
 // of the caller to retry if necessary.
-func (p *Producer) PublishTo(topic string, message []byte) (err error) {
+func (p *Producer) PublishTo(topic string, message []byte) error {
+	return p.sendProducerRequest(topic, 0, message)
+}
+
+// DeferredPublish sends a deferred message using the producer p, returning an
+// error if it was already closed or if an error occurred while publishing the
+// message.
+//
+// Note that no retry is done internally, the producer will fail after the
+// first unsuccessful attempt to publish the message. It is the responsibility
+// of the caller to retry if necessary.
+func (p *Producer) DeferredPublish(delay time.Duration, message []byte) error {
+	return p.DeferredPublishTo(p.topic, delay, message)
+}
+
+// DeferredPublishTo sends a deferred message to a specific topic using the
+// producer p, returning an error if it was already closed or if an error
+// occurred while publishing the message.
+//
+// Note that no retry is done internally, the producer will fail after the
+// first unsuccessful attempt to publish the message. It is the responsibility
+// of the caller to retry if necessary.
+func (p *Producer) DeferredPublishTo(topic string, delay time.Duration, message []byte) error {
+	return p.sendProducerRequest(topic, delay, message)
+}
+
+func (p *Producer) sendProducerRequest(topic string, delay time.Duration, message []byte) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = errors.New("publishing to a producer that was already stopped")
@@ -186,6 +213,7 @@ func (p *Producer) PublishTo(topic string, message []byte) (err error) {
 	// it up.
 	p.reqs <- ProducerRequest{
 		Topic:    topic,
+		Delay:    delay,
 		Message:  message,
 		Response: response,
 		Deadline: deadline,
@@ -297,7 +325,7 @@ func (p *Producer) run() {
 				continue
 			}
 
-			if err := p.publish(conn, req.Topic, req.Message); err != nil {
+			if err := p.publishMessage(conn, req.Topic, req.Delay, req.Message); err != nil {
 				req.complete(err)
 				shutdown(err)
 				continue
@@ -365,11 +393,19 @@ func (p *Producer) write(conn *Conn, cmd Command) (err error) {
 	return
 }
 
-func (p *Producer) publish(conn *Conn, topic string, message []byte) error {
-	return p.write(conn, Pub{
-		Topic:   topic,
-		Message: message,
-	})
+func (p *Producer) publishMessage(conn *Conn, topic string, delay time.Duration, message []byte) error {
+	if delay == 0 {
+		return p.write(conn, Pub{
+			Topic:   topic,
+			Message: message,
+		})
+	} else {
+		return p.write(conn, DPub{
+			Topic:   topic,
+			Delay:   delay,
+			Message: message,
+		})
+	}
 }
 
 func (p *Producer) ping(conn *Conn) error {

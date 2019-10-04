@@ -28,7 +28,13 @@ func (c *Client) Publish(topic string, message []byte) (err error) {
 	return
 }
 
-func (c *Client) MutliPublish(topic string, messages ...[]byte) (err error) {
+// MutliPublish is an alias of MultiPublish, here for backwards
+// compatibility.
+func (c *Client) MutliPublish(topic string, messages ...[]byte) error {
+	return c.MultiPublish(topic, messages)
+}
+
+func (c *Client) MultiPublish(topic string, messages ...[]byte) (err error) {
 	_, err = c.do("POST", "/mpub", url.Values{
 		"topic": []string{topic},
 	}, bytes.Join(messages, []byte("\n")))

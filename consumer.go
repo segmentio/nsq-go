@@ -29,11 +29,14 @@ type Consumer struct {
 	dialTimeout  time.Duration
 	readTimeout  time.Duration
 	writeTimeout time.Duration
+	drainTimeout time.Duration
 
 	// Shared state of the consumer.
-	mtx   sync.Mutex
-	join  sync.WaitGroup
-	conns map[string](chan<- Command)
+	mtx      sync.Mutex
+	join     sync.WaitGroup
+	shutJoin sync.WaitGroup
+	conns    map[string]connMeta
+	shutdown bool
 }
 
 type ConsumerConfig struct {
@@ -46,6 +49,13 @@ type ConsumerConfig struct {
 	DialTimeout  time.Duration
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
+	DrainTimeout time.Duration
+}
+
+// Helper struct to maintain a Conn and its associated Command channel
+type connMeta struct {
+	CmdChan chan<- Command
+	Con     *Conn
 }
 
 // validate ensures that this configuration is well-formed.
@@ -79,6 +89,9 @@ func (c *ConsumerConfig) defaults() {
 	if c.WriteTimeout == 0 {
 		c.WriteTimeout = DefaultWriteTimeout
 	}
+	if c.DrainTimeout == 0 {
+		c.DrainTimeout = DefaultDrainTimeout
+	}
 }
 
 // NewConsumer configures a new consumer instance.
@@ -102,8 +115,8 @@ func NewConsumer(config ConsumerConfig) (c *Consumer, err error) {
 		dialTimeout:  config.DialTimeout,
 		readTimeout:  config.ReadTimeout,
 		writeTimeout: config.WriteTimeout,
-
-		conns: make(map[string](chan<- Command)),
+		drainTimeout: config.DrainTimeout,
+		conns:        make(map[string]connMeta),
 	}
 
 	return
@@ -141,14 +154,25 @@ func (c *Consumer) Messages() <-chan Message {
 	return c.msgs
 }
 
+// stop kicks off an orderly shutdown of the Consumer.
 func (c *Consumer) stop() {
+	// We add 1 to the shutJoin WaitGroup to block until our Consumer.run() routine has completed.
+	// This ensures that we properly cleanup and requeue any in-flight messages before closing
+	// connections and returning.
+	c.shutJoin.Add(1)
+	// Lock the state mutex and set shutdown to true.
+	c.mtx.Lock()
+	c.shutdown = true
+	c.mtx.Unlock()
+	// Kick off the shutdown logic in our Consumer.run() to initiate the <-c.done case
 	close(c.done)
+	// Await Consumer.run() <-c.done to complete
+	c.shutJoin.Wait()
 }
 
 func (c *Consumer) run() {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
-	defer close(c.msgs)
 
 	if err := c.pulse(); err != nil {
 		log.Print(err)
@@ -162,10 +186,88 @@ func (c *Consumer) run() {
 			}
 
 		case <-c.done:
+			log.Println("Consumer initiating shutdown sequence")
+			// Send a CLS to all Cmd Channels for all connections
 			c.close()
+			log.Println("awaiting connection waitgroup")
+			// Wait for all runConn routines to return
 			c.join.Wait()
+			// At this point all runConn routines have returned, therefore we know
+			// we won't be receiving any new messages from nsqd servers. Now we can
+			// begin the processes of draining any in-flight messages and issuing a
+			// REQ command for each message.
+			log.Println("draining and requeueing remaining in-flight messages")
+			// drain and requeue any in-flight messages
+			close(c.msgs)
+			c.drainRemaining()
+			log.Println("closing and cleaning up connections")
+			// Cleanup remaining connections
+			c.mtx.Lock()
+			connCloseWg := sync.WaitGroup{}
+			connCloseWg.Add(len(c.conns))
+			for addr, cm := range c.conns {
+				delete(c.conns, addr)
+				// At this point we have drained all Messages from our main msgs channel and
+				// sent REQ commands for each on their associated CmdChan. However, we can not simply just
+				// close the CmdChan for each connection yet. These channels are buffered and if
+				// we simply call closeCommand(cm.CmdChan) here, there is a race, as the writeConn routines
+				// may not have finished processing all the REQ commands.
+				// Therefore we check the length of the channel and await for it to reach 0. If for some reason
+				// it fails to drain before c.drainTimeout we continue on and allow the messages to simply timeout
+				// and be reqeueued by the nsqd server.
+				go func(cm connMeta) {
+					start := time.Now()
+					for len(cm.CmdChan) > 0 {
+						if time.Now().Sub(start) > c.drainTimeout {
+							log.Print("failed to drain CmdChan for connection, closing now")
+							break
+						}
+						log.Println("awaiting for write channel to flush any requeue commands")
+						time.Sleep(time.Millisecond * 500)
+					}
+					closeCommand(cm.CmdChan)
+					err := cm.Con.Close()
+					if err != nil {
+						log.Printf("error returned from connection close %+s", err.Error())
+					}
+					connCloseWg.Done()
+				}(cm)
+			}
+			c.mtx.Unlock()
+			success := c.await(&connCloseWg, c.drainTimeout)
+			if success {
+				log.Println("successfully flushed all connections")
+			} else {
+				log.Println("timed out awaiting connections flush and close")
+			}
+			log.Println("Consumer exiting run")
+			// Signal to the stop() function that orderly shutdown is complete
+			c.shutJoin.Done()
 			return
 		}
+	}
+}
+
+func (c *Consumer) await(wg *sync.WaitGroup, duration time.Duration) bool {
+		waitChan := make(chan struct{})
+		go func() {
+		defer close(waitChan)
+		wg.Wait()
+	}()
+		select {
+	case <-waitChan:
+		return true // completed normally
+	case <-time.After(duration):
+		return false
+	}
+}
+
+// drainRemaining takes any remaining in-flight messages from the Consumer.msgs
+// channel and issues a REQ command for each.
+func (c *Consumer) drainRemaining() {
+	for m := range c.msgs {
+		log.Printf("requeueing %+v\n", m.ID.String())
+		sendCommand(m.cmdChan, Req{MessageID: m.ID})
 	}
 }
 
@@ -203,9 +305,16 @@ func (c *Consumer) pulse() (err error) {
 		if _, exists := c.conns[addr]; !exists {
 			// '+ 2' for the initial identify and subscribe commands.
 			cmdChan := make(chan Command, c.maxInFlight+2)
-			c.conns[addr] = cmdChan
+			conn, err := c.getConn(addr)
+			if err != nil {
+				log.Printf("failed to connect to %s: %s", addr, err)
+				continue
+			}
+			cm := connMeta{CmdChan: cmdChan, Con: conn}
+			c.conns[addr] = cm
 			c.join.Add(1)
-			go c.runConn(addr, cmdChan)
+			go c.runConn(conn, addr, cmdChan)
+			go c.writeConn(conn, cmdChan)
 		}
 	}
 
@@ -214,39 +323,47 @@ func (c *Consumer) pulse() (err error) {
 }
 
 func (c *Consumer) close() {
+	log.Println("sending CLS to all command channels")
 	c.mtx.Lock()
-
-	for _, cmdChan := range c.conns {
-		sendCommand(cmdChan, Cls{})
+	for _, cm := range c.conns {
+		sendCommand(cm.CmdChan, Cls{})
 	}
-
 	c.mtx.Unlock()
 	return
 }
 
 func (c *Consumer) closeConn(addr string) {
 	c.mtx.Lock()
-	cmdChan := c.conns[addr]
-	delete(c.conns, addr)
+	cm := c.conns[addr]
+	// If we're not in shutdown mode we want to properly delete and close
+	// this connection. This could happen for any number of reasons including
+	// nsq servers being removed or intermittent network failure. However, if we
+	// are in shutdown mode, we know that an orderly shutdown is in process and we
+	// wish to retain these connections while we cleanup. This will allow the Consumer.run()
+	// routine the opportunity to drain and requeue remaining in-flight messages.
+	// The Consumer.run() routine will then handle deleting, and closing the channels and
+	// connections for us rather than doing it here.
+	if !c.shutdown {
+		delete(c.conns, addr)
+		closeCommand(cm.CmdChan)
+		cm.Con.Close()
+	}
 	c.mtx.Unlock()
-	c.join.Done()
-	closeCommand(cmdChan)
 }
 
-func (c *Consumer) runConn(addr string, cmdChan chan Command) {
-	defer c.closeConn(addr)
-
-	var conn *Conn
-	var err error
-	var rdy int
-
-	if conn, err = DialTimeout(addr, c.dialTimeout); err != nil {
-		log.Printf("failed to connect to %s: %s", addr, err)
-		return
+func (c *Consumer) getConn(addr string) (*Conn, error) {
+	conn, err := DialTimeout(addr, c.dialTimeout)
+	if err != nil {
+		return nil, err
 	}
 
-	c.join.Add(1)
-	go c.writeConn(conn, cmdChan)
+	return conn, nil
+}
+
+func (c *Consumer) runConn(conn *Conn, addr string, cmdChan chan Command) {
+	defer c.closeConn(addr)
+	defer c.join.Done()
+	var rdy int
 
 	sendCommand(cmdChan, c.identify)
 	sendCommand(cmdChan, Sub{Topic: c.topic, Channel: c.channel})
@@ -299,10 +416,6 @@ func (c *Consumer) runConn(addr string, cmdChan chan Command) {
 }
 
 func (c *Consumer) writeConn(conn *Conn, cmdChan chan Command) {
-	defer c.join.Done()
-	defer conn.Close()
-	defer closeCommand(cmdChan)
-
 	for cmd := range cmdChan {
 		if err := c.writeConnCommand(conn, cmd); err != nil {
 			log.Print(err)

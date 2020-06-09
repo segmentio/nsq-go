@@ -8,7 +8,7 @@ Motivations
 
 We ran into production issues with the standard nsq-go package where our workers
 would enter deadlock situations where they would stop consuming messages and
-just hang in endless termination loops.  
+just hang in endless termination loops.
 After digging through the code and trying to figure out how to address the
 problem it became clear that a rewrite was going to be faster than dealing with
 the amount of state synchronization that was done in nsq-go (multiple mutexes,
@@ -80,12 +80,3 @@ func main() {
     producer.Stop()
 }
 ```
-
-segment/nsq
------------
-
-The [segment/nsq](https://hub.docker.com/r/segment/nsq/tags) docker image packages
-the tools within this repository:
-- **nsq-to-nsq** is similar to the standard nsq_to_nsq tool but supports rate limiting.
-- **nsqlookup-proxy** is a proxy for nsqlookupd, it aggregates the results from querying
-multiple nsqlookupd servers and exposes them under a single endpoint.

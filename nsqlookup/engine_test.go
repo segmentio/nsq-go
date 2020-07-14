@@ -510,8 +510,8 @@ func checkEqualNodes2(t *testing.T, n1 []NodeInfo, n2 []NodeInfo2) {
 }
 
 func checkEqualTopics(t *testing.T, t1 []string, t2 []string) {
-	sortedStrings(t1)
-	sortedStrings(t2)
+	t1 = sortedStrings(t1)
+	t2 = sortedStrings(t2)
 
 	if !reflect.DeepEqual(t1, t2) {
 		t.Logf("<<< %#v", t1)
@@ -521,8 +521,8 @@ func checkEqualTopics(t *testing.T, t1 []string, t2 []string) {
 }
 
 func checkEqualChannels(t *testing.T, c1 []string, c2 []string) {
-	sortedStrings(c1)
-	sortedStrings(c2)
+	c1 = sortedStrings(c1)
+	c2 = sortedStrings(c2)
 
 	if !reflect.DeepEqual(c1, c2) {
 		t.Logf("<<< %#v", c1)

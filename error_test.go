@@ -10,6 +10,7 @@ func TestError(t *testing.T) {
 		ErrBadChannel,
 		ErrBadMessage,
 		ErrPubFailed,
+		ErrDPubFailed,
 		ErrMPubFailed,
 		ErrFinFailed,
 		ErrReqFailed,

@@ -228,11 +228,6 @@ func sortedNodes2(n []NodeInfo2) []NodeInfo2 {
 	return n
 }
 
-func sortedStrings(s []string) []string {
-	sort.Strings(s)
-	return s
-}
-
 func httpBroadcastAddress(info NodeInfo) string {
 	return makeBroadcastAddress(info.BroadcastAddress, info.HttpPort)
 }

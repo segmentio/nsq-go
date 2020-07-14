@@ -9,11 +9,29 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/segmentio/services"
 )
 
-type Registry = services.Registry
+type Registry interface {
+	// Lookup returns a set of addresses at which services with the given name
+	// can be reached.
+	//
+	// An arbitrary list of tags can be passed to the method to narrow down the
+	// result set to services matching this set of tags. No tags means to do no
+	// filtering.
+	//
+	// The method also returns a TTL representing how long the result is valid
+	// for. A zero TTL means that the caller should not reuse the result.
+	//
+	// The returned list of addresses must not be retained by implementations of
+	// the Registry interface. The caller becomes the owner of the value after
+	// the method returned.
+	//
+	// A non-nil error is returned when the lookup cannot be completed.
+	//
+	// The context can be used to asynchronously cancel the query when it
+	// involves blocking operations.
+	Lookup(ctx context.Context, name string, tags ...string) (addrs []string, ttl time.Duration, err error)
+}
 
 // LocalRegistry is an implementation of a immutable set of services. This type
 // is mostly useful for testing purposes.
@@ -116,6 +134,6 @@ func (r *ConsulRegistry) get(ctx context.Context, endpoint string, result interf
 }
 
 var (
-	_ services.Registry = (LocalRegistry)(nil)
-	_ services.Registry = (*ConsulRegistry)(nil)
+	_ Registry = (LocalRegistry)(nil)
+	_ Registry = (*ConsulRegistry)(nil)
 )

@@ -116,11 +116,27 @@ func (p *Producer) Start() {
 	p.started = true
 }
 
-// Stop gracefully shutsdown the producer, cancelling all inflight requests and
+// StopWithDrain gracefully shuts down the producer, allowing all inflight
+// requests to be sent and for all backend connections to be closed.
+//
+// It is safe to call the method, or Stop, multiple times and from multiple
+// goroutines; they will all block until the producer has been completely
+// shutdown. Note, though, that if Stop is called first, a subsequent call to
+// StopWithWait will not allow inflight requests to be sent.
+func (p *Producer) StopWithDrain() {
+	p.once.Do(func() {
+		close(p.reqs)
+	})
+	p.join.Wait()
+}
+
+// Stop gracefully shuts down the producer, cancelling all inflight requests and
 // waiting for all backend connections to be closed.
 //
-// It is safe to call the method multiple times and from multiple goroutines,
-// they will all block until the producer has been completely shutdown.
+// It is safe to call the method, or StopWithWait, multiple times and from
+// multiple goroutines; they will all block until the producer has been
+// completely shutdown. Note, though, that if StopWithDrain is called first, a
+// subsequent call to Stop will not prevent inflight requests from being sent.
 func (p *Producer) Stop() {
 	p.once.Do(p.stop)
 	err := errors.New("publishing to a producer that was already stopped")
@@ -261,7 +277,8 @@ func (p *Producer) run() {
 			}
 
 		case req, ok := <-reqChan:
-			if !ok {
+			if !ok && req.Topic == "" {
+				// exit if reqChan is closed and there are no more requests to process
 				return
 			}
 

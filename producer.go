@@ -116,23 +116,18 @@ func (p *Producer) Start() {
 	p.started = true
 }
 
-// StopWithWait gracefully shuts down the producer, allowing all inflight
-// requests to be sent and for all backend connections to be closed. Once those
-// actions are complete, the wait group is signaled.
+// StopWithDrain gracefully shuts down the producer, allowing all inflight
+// requests to be sent and for all backend connections to be closed.
 //
 // It is safe to call the method, or Stop, multiple times and from multiple
 // goroutines; they will all block until the producer has been completely
 // shutdown. Note, though, that if Stop is called first, a subsequent call to
-// StopWithWait will not allow for inflight requests to be sent.
-func (p *Producer) StopWithWait(wg *sync.WaitGroup) {
-	go func() {
-		defer wg.Done()
-
-		p.once.Do(func() {
-			close(p.reqs)
-		})
-		p.join.Wait()
-	}()
+// StopWithWait will not allow inflight requests to be sent.
+func (p *Producer) StopWithDrain() {
+	p.once.Do(func() {
+		close(p.reqs)
+	})
+	p.join.Wait()
 }
 
 // Stop gracefully shuts down the producer, cancelling all inflight requests and
@@ -140,7 +135,7 @@ func (p *Producer) StopWithWait(wg *sync.WaitGroup) {
 //
 // It is safe to call the method, or StopWithWait, multiple times and from
 // multiple goroutines; they will all block until the producer has been
-// completely shutdown. Note, though, that if StopWithWait is called first, a
+// completely shutdown. Note, though, that if StopWithDrain is called first, a
 // subsequent call to Stop will not prevent inflight requests from being sent.
 func (p *Producer) Stop() {
 	p.once.Do(p.stop)

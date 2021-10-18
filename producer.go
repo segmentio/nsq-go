@@ -216,7 +216,6 @@ func (p *Producer) stop() {
 
 func (p *Producer) run() {
 	var conn *Conn
-	var reqChan <-chan ProducerRequest
 	var resChan chan Frame
 	var pending []ProducerRequest
 
@@ -227,7 +226,6 @@ func (p *Producer) run() {
 			close(resChan)
 			conn.Close()
 			conn = nil
-			reqChan = nil
 			resChan = nil
 			pending = completeAllProducerRequests(pending, err)
 		}
@@ -245,7 +243,6 @@ func (p *Producer) run() {
 			return
 		}
 
-		reqChan = p.reqs
 		resChan = make(chan Frame, 16)
 		go p.flush(conn, resChan)
 
@@ -259,7 +256,7 @@ func (p *Producer) run() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	connect()
+	connErr := connect()
 
 	for {
 		select {
@@ -268,7 +265,7 @@ func (p *Producer) run() {
 
 		case now := <-ticker.C:
 			if conn == nil {
-				connect()
+				connErr = connect()
 			}
 
 			if producerRequestsTimedOut(pending, now) {
@@ -276,10 +273,15 @@ func (p *Producer) run() {
 				continue
 			}
 
-		case req, ok := <-reqChan:
+		case req, ok := <-p.reqs:
 			if !ok && req.Topic == "" {
-				// exit if reqChan is closed and there are no more requests to process
+				// exit if the request channel is closed and there are no more requests to process
 				return
+			}
+
+			if connErr != nil {
+				req.complete(connErr)
+				continue
 			}
 
 			if err := p.publish(conn, req.Topic, req.Message); err != nil {

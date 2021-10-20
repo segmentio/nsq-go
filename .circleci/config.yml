@@ -51,6 +51,8 @@ jobs:
 
     steps:
       - checkout
+      - run: sudo rm -f /usr/share/ca-certificates/mozilla/DST_Root_CA_X3.crt
+      - run: sudo update-ca-certificates
       - run: go mod download
       - run: go test -v -race ./...
 
@@ -67,6 +69,8 @@ jobs:
       - run:
           name: Build Programs
           command: |
+            sudo rm -f /usr/share/ca-certificates/mozilla/DST_Root_CA_X3.crt
+            sudo update-ca-certificates
             go mod download
             go build ./cmd/nsq-to-nsq
             go build ./cmd/nsq-to-http

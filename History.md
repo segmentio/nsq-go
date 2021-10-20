@@ -1,6 +1,6 @@
 
-v1.2.5 / ?
-======
+v1.2.5 / 2021-10-20
+===================
 
   * Optionally return connection errors for producer requests
   * Add producer StopWithDrain

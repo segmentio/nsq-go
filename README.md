@@ -80,3 +80,15 @@ func main() {
     producer.Stop()
 }
 ```
+
+Testing
+-------
+
+Unit tests expect Consul and a set of NSQ daemons to be running. Start them
+using Docker Compose, and then run unit tests.
+
+```shell
+docker-compose up -d
+go test -v -race ./...
+docker-compose down
+```

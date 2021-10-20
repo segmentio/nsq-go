@@ -15,6 +15,7 @@ type ProducerConfig struct {
 	Address        string
 	Topic          string
 	MaxConcurrency int
+	FailOnConnErr  bool
 	DialTimeout    time.Duration
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
@@ -54,11 +55,12 @@ type Producer struct {
 	started bool
 
 	// Immutable state of the producer.
-	address      string
-	topic        string
-	dialTimeout  time.Duration
-	readTimeout  time.Duration
-	writeTimeout time.Duration
+	address       string
+	topic         string
+	failOnConnErr bool
+	dialTimeout   time.Duration
+	readTimeout   time.Duration
+	writeTimeout  time.Duration
 }
 
 // ProducerRequest are used to represent operations that are submitted to
@@ -75,13 +77,14 @@ func NewProducer(config ProducerConfig) (p *Producer, err error) {
 	config.defaults()
 
 	p = &Producer{
-		reqs:         make(chan ProducerRequest, config.MaxConcurrency),
-		done:         make(chan struct{}),
-		address:      config.Address,
-		topic:        config.Topic,
-		dialTimeout:  config.DialTimeout,
-		readTimeout:  config.ReadTimeout,
-		writeTimeout: config.WriteTimeout,
+		reqs:          make(chan ProducerRequest, config.MaxConcurrency),
+		done:          make(chan struct{}),
+		address:       config.Address,
+		topic:         config.Topic,
+		failOnConnErr: config.FailOnConnErr,
+		dialTimeout:   config.DialTimeout,
+		readTimeout:   config.ReadTimeout,
+		writeTimeout:  config.WriteTimeout,
 	}
 
 	return
@@ -216,6 +219,8 @@ func (p *Producer) stop() {
 
 func (p *Producer) run() {
 	var conn *Conn
+	var connErr error
+	var reqChan <-chan ProducerRequest
 	var resChan chan Frame
 	var pending []ProducerRequest
 
@@ -226,6 +231,10 @@ func (p *Producer) run() {
 			close(resChan)
 			conn.Close()
 			conn = nil
+			connErr = errors.New("connection shutdown")
+			if !p.failOnConnErr {
+				reqChan = nil
+			}
 			resChan = nil
 			pending = completeAllProducerRequests(pending, err)
 		}
@@ -243,6 +252,7 @@ func (p *Producer) run() {
 			return
 		}
 
+		reqChan = p.reqs
 		resChan = make(chan Frame, 16)
 		go p.flush(conn, resChan)
 
@@ -256,7 +266,10 @@ func (p *Producer) run() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	connErr := connect()
+	if p.failOnConnErr {
+		reqChan = p.reqs
+	}
+	connErr = connect()
 
 	for {
 		select {
@@ -273,13 +286,13 @@ func (p *Producer) run() {
 				continue
 			}
 
-		case req, ok := <-p.reqs:
+		case req, ok := <-reqChan:
 			if !ok && req.Topic == "" {
-				// exit if the request channel is closed and there are no more requests to process
+				// exit if reqChan is closed and there are no more requests to process
 				return
 			}
 
-			if connErr != nil {
+			if p.failOnConnErr && connErr != nil {
 				req.complete(connErr)
 				continue
 			}

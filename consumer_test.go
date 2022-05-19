@@ -238,7 +238,7 @@ func TestDrainAndRequeueOnStop(t *testing.T) {
 
 func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 	TopicName := "test-stop-requeue-message-timeout"
-	mumberMessages := 25
+	numberMessages := 25
 	p, _ := NewProducer(ProducerConfig{
 		Topic:        TopicName,
 		Address:      "localhost:4150",
@@ -248,7 +248,7 @@ func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 	})
 	sentMessages := make(map[string]bool)
 	p.Start()
-	for i := 0; i < mumberMessages; i++ {
+	for i := 0; i < numberMessages; i++ {
 		msg := strconv.Itoa(i)
 		if err := p.Publish([]byte(msg)); err != nil {
 			t.Error(err)
@@ -319,7 +319,7 @@ func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 	consumer2.Start()
 
 	msgNum = 0
-	for msgNum < mumberMessages {
+	for msgNum < numberMessages {
 		select {
 		case msg := <-consumer2.Messages():
 			fmt.Printf("handling message %s\n", string(msg.Body))

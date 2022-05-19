@@ -277,8 +277,8 @@ func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 	deadline := time.NewTimer(10 * time.Second)
 	defer deadline.Stop()
 
-	// Consume 5 messages do not ack on them
-	// to incur a re-queue on remaining in flight
+	// Consume 5 messages do not ack them
+	// to incur a re-queue on remaining in-flight
 	msgNum := 0
 	for msgNum < 5 {
 		select {
@@ -334,7 +334,7 @@ func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 
 	consumer2.Stop()
 
-	//Make sure the channel gets closed at some point.
+	// Make sure the channel gets closed at some point.
 	for msg := range consumer2.Messages() {
 		t.Error("unexpected message:", msg)
 		msg.Finish()

@@ -190,7 +190,7 @@ func (c *Consumer) run() {
 			// Send a CLS to all Cmd Channels for all connections
 			c.close()
 			log.Println("draining and re-queueing in-flight messages and awaiting connection waitgroup")
-			// Drain and re-queue any in-flight messages until all runConn routines to return
+			// Drain and re-queue any in-flight messages until all runConn routines return
 			c.drainAndJoinAwait()
 			// At this point all runConn routines have returned, therefore we know
 			// we won't be receiving any new messages from nsqd servers. Now we can
@@ -263,11 +263,11 @@ func (c *Consumer) await(wg *sync.WaitGroup, duration time.Duration) bool {
 }
 
 // drainAndJoinAwait takes in-flight messages from the Consumer.msgs channel
-// and issues a REQ command for each util all runConn routines will be return
-// We have to do this because if consumer received the number of messages equal or more maxInFlight
+// and issues a REQ command for each until all runConn routines return.
+// We have to do this because if consumer received the number of messages >= maxInFlight
 // and we did not ack any of those messages back to NSQ within message-time period (default 60 seconds),
-// NSQ will automatically start re-queue them and send next messages from queue to consumer.
-// But at this point the messages channel will be in deadlock scenario because it is already full and it block read channel.
+// NSQ will automatically re-queue them and send the next messages from queue to consumer.
+// But at this point the messages channel will be in deadlock scenario because it is already full and it blocks the read channel.
 func (c *Consumer) drainAndJoinAwait() {
 	waitChan := make(chan struct{})
 	go func() {

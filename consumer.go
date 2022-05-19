@@ -189,9 +189,9 @@ func (c *Consumer) run() {
 			log.Println("Consumer initiating shutdown sequence")
 			// Send a CLS to all Cmd Channels for all connections
 			c.close()
-			log.Println("awaiting connection waitgroup")
-			// Wait for all runConn routines to return
-			c.join.Wait()
+			log.Println("draining and re-queueing in-flight messages and awaiting connection waitgroup")
+			// Drain and re-queue any in-flight messages until all runConn routines to return
+			c.drainAndJoinAwait()
 			// At this point all runConn routines have returned, therefore we know
 			// we won't be receiving any new messages from nsqd servers. Now we can
 			// begin the processes of draining any in-flight messages and issuing a
@@ -249,16 +249,41 @@ func (c *Consumer) run() {
 }
 
 func (c *Consumer) await(wg *sync.WaitGroup, duration time.Duration) bool {
-		waitChan := make(chan struct{})
-		go func() {
+	waitChan := make(chan struct{})
+	go func() {
 		defer close(waitChan)
 		wg.Wait()
 	}()
-		select {
+	select {
 	case <-waitChan:
 		return true // completed normally
 	case <-time.After(duration):
 		return false
+	}
+}
+
+// drainAndJoinAwait takes in-flight messages from the Consumer.msgs channel
+// and issues a REQ command for each util all runConn routines will be return
+// We have to do this because if consumer received the number of messages equal or more maxInFlight
+// and we did not ack any of those messages back to NSQ within message-time period (default 60 seconds),
+// NSQ will automatically start re-queue them and send next messages from queue to consumer.
+// But at this point the messages channel will be in deadlock scenario because it is already full and it block read channel.
+func (c *Consumer) drainAndJoinAwait() {
+	waitChan := make(chan struct{})
+	go func() {
+		defer close(waitChan)
+		c.join.Wait()
+	}()
+	for {
+		select {
+		case <-waitChan:
+			return
+		case m, ok := <-c.msgs:
+			if ok {
+				log.Printf("requeueing %+v\n", m.ID.String())
+				sendCommand(m.cmdChan, Req{MessageID: m.ID})
+			}
+		}
 	}
 }
 

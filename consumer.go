@@ -193,9 +193,9 @@ func (c *Consumer) run() {
 			// Drain and re-queue any in-flight messages until all runConn routines return
 			c.drainAndJoinAwait()
 			// At this point all runConn routines have returned, therefore we know
-			// we won't be receiving any new messages from nsqd servers. Now we can
-			// begin the processes of draining any in-flight messages and issuing a
-			// REQ command for each message.
+			// we won't be receiving any new messages from nsqd servers.
+			// But we potentially could have some messages in c.msgs
+			// We can safely close the c.msgs channel and requeue the remaining messages.
 			log.Println("draining and requeueing remaining in-flight messages")
 			// drain and requeue any remaining in-flight messages
 			close(c.msgs)

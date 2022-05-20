@@ -197,7 +197,7 @@ func (c *Consumer) run() {
 			// begin the processes of draining any in-flight messages and issuing a
 			// REQ command for each message.
 			log.Println("draining and requeueing remaining in-flight messages")
-			// drain and requeue any in-flight messages
+			// drain and requeue any remaining in-flight messages
 			close(c.msgs)
 			c.drainRemaining()
 			log.Println("closing and cleaning up connections")

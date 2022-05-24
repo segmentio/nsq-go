@@ -1,4 +1,9 @@
 
+v1.2.6 / 2022-05-24
+===================
+
+  * Added drainAndJoinAwait for consumer stop to handle deadlock scenario related to NSQ message timeout
+
 v1.2.5 / 2021-10-20
 ===================
 

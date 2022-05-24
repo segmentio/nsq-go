@@ -161,7 +161,7 @@ func TestDrainAndRequeueOnStop(t *testing.T) {
 		DialTimeout:  time.Second * 60,
 		ReadTimeout:  time.Second * 60,
 		WriteTimeout: time.Second * 60,
-		MaxInFlight: 10,
+		MaxInFlight:  10,
 	})
 
 	if err != nil {
@@ -203,7 +203,7 @@ func TestDrainAndRequeueOnStop(t *testing.T) {
 		DialTimeout:  time.Second * 60,
 		ReadTimeout:  time.Second * 60,
 		WriteTimeout: time.Second * 60,
-		MaxInFlight: 100,
+		MaxInFlight:  100,
 	})
 
 	deadline = time.NewTimer(10 * time.Second)
@@ -233,5 +233,116 @@ func TestDrainAndRequeueOnStop(t *testing.T) {
 	for msg := range consumer2.Messages() {
 		t.Error("unexpected message:", msg)
 		msg.Finish()
+	}
+}
+
+func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
+	TopicName := "test-stop-requeue-message-timeout"
+	numberMessages := 25
+	p, _ := NewProducer(ProducerConfig{
+		Topic:        TopicName,
+		Address:      "localhost:4150",
+		DialTimeout:  time.Second * 60,
+		ReadTimeout:  time.Second * 60,
+		WriteTimeout: time.Second * 60,
+	})
+	sentMessages := make(map[string]bool)
+	p.Start()
+	for i := 0; i < numberMessages; i++ {
+		msg := strconv.Itoa(i)
+		if err := p.Publish([]byte(msg)); err != nil {
+			t.Error(err)
+			return
+		}
+		sentMessages[msg] = true
+	}
+
+	consumer, err := NewConsumer(ConsumerConfig{
+		Topic:        TopicName,
+		Channel:      "foo",
+		Address:      "localhost:4150",
+		DialTimeout:  time.Second * 60,
+		ReadTimeout:  time.Second * 60,
+		WriteTimeout: time.Second * 60,
+		MaxInFlight:  5,
+		Identify:     Identify{MessageTimeout: time.Second * 2},
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	consumer.Start()
+
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+
+	// Consume 5 messages do not ack them
+	// to incur a re-queue on remaining in-flight
+	msgNum := 0
+	for msgNum < 5 {
+		select {
+		case msg := <-consumer.Messages():
+			fmt.Printf("start handling message %s\n", string(msg.Body))
+			msgNum++
+		case <-deadline.C:
+			t.Error("timeout")
+			return
+		}
+	}
+	fmt.Printf("Allow some time for the nsqd to timeout received messages")
+	// Allow some time for the nsqd to timeout received messages and send 10+ more messages
+	// to client to deadlock runConn
+	time.Sleep(6 * time.Second)
+	// At this point runConn should have deadlock when Stop is executing
+	consumer.Stop()
+
+	//Make sure the channel gets closed at some point.
+	for msg := range consumer.Messages() {
+		t.Error("unexpected message:", msg)
+		msg.Finish()
+	}
+
+	consumer2, _ := NewConsumer(ConsumerConfig{
+		Topic:        TopicName,
+		Channel:      "foo",
+		Address:      "localhost:4150",
+		DialTimeout:  time.Second * 60,
+		ReadTimeout:  time.Second * 60,
+		WriteTimeout: time.Second * 60,
+		MaxInFlight:  100,
+	})
+
+	deadline = time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+
+	consumer2.Start()
+
+	msgNum = 0
+	for msgNum < numberMessages {
+		select {
+		case msg := <-consumer2.Messages():
+			fmt.Printf("handling message %s\n", string(msg.Body))
+			msg.Finish()
+			msgNum++
+			delete(sentMessages, string(msg.Body))
+		case <-deadline.C:
+			t.Error("timeout")
+			return
+		}
+	}
+
+	consumer2.Stop()
+
+	// Make sure the channel gets closed at some point.
+	for msg := range consumer2.Messages() {
+		t.Error("unexpected message:", msg)
+		msg.Finish()
+	}
+	// Make sure we received all sent messages
+	if len(sentMessages) > 0 {
+		for msg := range sentMessages {
+			t.Error("Client did not receive message: ", msg)
+		}
 	}
 }

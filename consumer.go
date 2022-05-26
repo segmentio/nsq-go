@@ -441,6 +441,13 @@ func (c *Consumer) runConn(conn *Conn, addr string, cmdChan chan Command) {
 }
 
 func (c *Consumer) writeConn(conn *Conn, cmdChan chan Command) {
+	defer conn.Close()
+	defer closeCommand(cmdChan)
+	// In case of error from writeConnCommand operation we have to close the connection and cmdChan channel.
+	// To avoid deadlock scenario when nobody reading from cmdChan channel.
+	// It will trigger exit from Consumer.runConn() with read error and the connection clean up.
+	// And Consumer.run() will try to re-connect to NSQ in 15 seconds.
+
 	for cmd := range cmdChan {
 		if err := c.writeConnCommand(conn, cmd); err != nil {
 			log.Print(err)

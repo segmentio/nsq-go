@@ -57,6 +57,10 @@ func ReadCommand(r *bufio.Reader) (cmd Command, err error) {
 		return readPub(line[4:], r)
 	}
 
+	if strings.HasPrefix(line, "DPUB ") {
+		return readDPub(line[5:], r)
+	}
+
 	if strings.HasPrefix(line, "MPUB ") {
 		return readMPub(line[5:], r)
 	}

@@ -18,6 +18,7 @@ const (
 	ErrBadChannel   Error = "E_BAD_CHANNEL"
 	ErrBadMessage   Error = "E_BAD_MESSAGE"
 	ErrPubFailed    Error = "E_PUB_FAILED"
+	ErrDPubFailed   Error = "E_DPUB_FAILED"
 	ErrMPubFailed   Error = "E_MPUB_FAILED"
 	ErrFinFailed    Error = "E_FIN_FAILED"
 	ErrReqFailed    Error = "E_REQ_FAILED"

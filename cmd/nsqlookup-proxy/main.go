@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -8,10 +9,7 @@ import (
 	"time"
 
 	"github.com/segmentio/conf"
-	"github.com/segmentio/events"
-	_ "github.com/segmentio/events/ecslogs"
-	"github.com/segmentio/events/httpevents"
-	_ "github.com/segmentio/events/text"
+	"github.com/segmentio/events/v2/httpevents"
 	nsq "github.com/segmentio/nsq-go"
 	"github.com/segmentio/nsq-go/nsqlookup"
 )
@@ -35,8 +33,12 @@ func main() {
 	}
 
 	args := conf.Load(&config)
-	events.DefaultLogger.EnableDebug = config.Debug
-	events.DefaultLogger.EnableSource = config.Debug
+	if config.Debug {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+			Level:     slog.LevelDebug,
+			AddSource: true,
+		})))
+	}
 
 	var transport http.RoundTripper = http.DefaultTransport
 	if config.Verbose {
@@ -46,10 +48,10 @@ func main() {
 	switch len(args) {
 	case 1:
 	case 0:
-		events.Log("missing registry endpoint")
+		slog.Info("missing registry endpoint")
 		os.Exit(1)
 	default:
-		events.Log("too many registry endpoints: %{endpoints}v", args)
+		slog.Info("too many registry endpoints", "endponts", args)
 		os.Exit(1)
 	}
 
@@ -58,18 +60,18 @@ func main() {
 
 	switch protocol {
 	case "consul":
-		events.Log("using consul registry at %{address}s", address)
+		slog.Info("using consul registry", "address", address)
 		registry = &nsqlookup.ConsulRegistry{
 			Address:   address,
 			Transport: transport,
 		}
 	case "":
-		events.Log("using local registry mapping %{service}s to %{address}s", nsqlookupd, address)
+		slog.Info("using local registry mapping", "service", nsqlookupd, "address", address)
 		registry = nsqlookup.LocalRegistry{
 			nsqlookupd: {address},
 		}
 	default:
-		events.Log("unknown registry: %{protocol}s://%{address}s", protocol, address)
+		slog.Error("unknown registry", "protocol", protocol, "address", address)
 		os.Exit(1)
 	}
 
@@ -77,18 +79,18 @@ func main() {
 	for subnet, zone := range config.Topology {
 		_, cidr, err := net.ParseCIDR(subnet)
 		if err != nil {
-			events.Log("error parsing %{subnet}s subnet: %{error}v", subnet, err)
+			slog.Warn("error parsing subnet", "subnet", subnet, "err", err)
 			continue
 		}
 		topology = append(topology, nsqlookup.Subnet{
 			CIDR: cidr,
 			Zone: zone,
 		})
-		events.Log("configuring network topology with %{cidr}s subnet in zone %{zone}s", cidr, zone)
+		slog.Info("configuring network topology with specified subnet", "cidr", cidr, "zone", zone)
 	}
 
 	for _, topic := range config.ZoneAwareTopics {
-		events.Log("applying zone restriction to topic %{topic}s", topic)
+		slog.Info("applying zone restriction to topic", "topic", topic)
 	}
 
 	var proxy = &nsqlookup.ProxyEngine{
@@ -114,7 +116,7 @@ func main() {
 		handler = httpevents.NewHandler(handler)
 	}
 
-	events.Log("starting nsqlookup-proxy listening on %{address}s", config.Bind)
+	slog.Info("starting nsqlookup-proxy", "listen_address", config.Bind)
 	http.ListenAndServe(config.Bind, handler)
 }
 

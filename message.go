@@ -91,7 +91,7 @@ func (m *Message) Finish() {
 }
 
 // Requeue must be called on messages received from a consumer to let the NSQ
-// server know that the message could not be proessed and should be retried.
+// server know that the message could not be processed and should be retried.
 // The timeout is the amount of time the NSQ server waits before offering this
 // message again to its consumers.
 //

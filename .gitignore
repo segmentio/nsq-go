@@ -30,4 +30,4 @@ _testmain.go
 /vendor/*/
 nsq-to-nsq
 nsq-to-http
-nsqlookup-proxy
+/nsqlookup-proxy

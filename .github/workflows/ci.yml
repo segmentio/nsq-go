@@ -1,0 +1,21 @@
+on: [push, pull_request]
+name: Test
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.22.x
+    - uses: actions/checkout@v4
+      with:
+         path: './src/github.com/segmentio/nsq-go'
+    - run: echo "PATH=$GITHUB_WORKSPACE/bin:$PATH" >> $GITHUB_ENV
+    - name: Run tests
+      run: |
+        docker-compose up -d
+        go vet ./...
+        go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+        go test -race -v ./...
+      working-directory: './src/github.com/segmentio/nsq-go'

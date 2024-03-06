@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/segmentio/conf"
-	"github.com/segmentio/events"
-	_ "github.com/segmentio/events/ecslogs"
-	"github.com/segmentio/events/httpevents"
-	_ "github.com/segmentio/events/text"
+	"github.com/segmentio/events/v2"
+	_ "github.com/segmentio/events/v2/ecslogs"
+	"github.com/segmentio/events/v2/httpevents"
+	_ "github.com/segmentio/events/v2/text"
 	nsq "github.com/segmentio/nsq-go"
 	"github.com/segmentio/nsq-go/nsqlookup"
 )

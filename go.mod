@@ -1,15 +1,21 @@
 module github.com/segmentio/nsq-go
 
-go 1.11
+go 1.18
 
 require (
-	github.com/pkg/errors v0.8.0
-	github.com/segmentio/conf v1.0.0
-	github.com/segmentio/events v2.1.0+incompatible
-	github.com/segmentio/go-snakecase v1.0.0 // indirect
+	github.com/pkg/errors v0.9.1
+	github.com/segmentio/conf v1.3.0
+	github.com/segmentio/events/v2 v2.6.0
+	github.com/segmentio/timers v1.1.1
+)
+
+require (
+	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/encoding v0.3.6 // indirect
+	github.com/segmentio/go-snakecase v1.2.0 // indirect
 	github.com/segmentio/objconv v1.0.1 // indirect
-	github.com/segmentio/timers v0.0.0-20180605162245-8ad1428b010e
-	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
+	golang.org/x/sys v0.18.0 // indirect
 	gopkg.in/go-playground/mold.v2 v2.2.0 // indirect
-	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19 // indirect
+	gopkg.in/validator.v2 v2.0.1 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

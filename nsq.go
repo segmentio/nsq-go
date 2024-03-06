@@ -3,7 +3,6 @@ package nsq
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -125,7 +124,7 @@ func (c *Client) do(method string, path string, query url.Values, data []byte) (
 	}
 
 	if len(data) != 0 {
-		body = ioutil.NopCloser(bytes.NewReader(data))
+		body = io.NopCloser(bytes.NewReader(data))
 	}
 
 	if res, err = c.Do(&http.Request{
@@ -157,7 +156,7 @@ func (c *Client) do(method string, path string, query url.Values, data []byte) (
 		return
 	}
 
-	if ret, err = ioutil.ReadAll(res.Body); err != nil {
+	if ret, err = io.ReadAll(res.Body); err != nil {
 		err = errors.Wrapf(err, "%s %s://%s?%s", method, scheme, host, query.Encode())
 		return
 	}

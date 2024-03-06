@@ -94,10 +94,3 @@ func appendError(errList error, err error) error {
 		return errorList{err}
 	}
 }
-
-func isTimeout(err error) bool {
-	e, ok := err.(interface {
-		Timeout() bool
-	})
-	return ok && e.Timeout()
-}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -156,7 +155,7 @@ func (c *LookupClient) do(host string, method string, path string, query url.Val
 	}
 
 	if len(data) != 0 {
-		body = ioutil.NopCloser(bytes.NewReader(data))
+		body = io.NopCloser(bytes.NewReader(data))
 	}
 
 	if res, err = c.Do(&http.Request{
@@ -184,7 +183,7 @@ func (c *LookupClient) do(host string, method string, path string, query url.Val
 
 	defer res.Body.Close()
 
-	if ret, err = ioutil.ReadAll(res.Body); err != nil {
+	if ret, err = io.ReadAll(res.Body); err != nil {
 		err = errors.Wrap(err, "reading response body")
 		return
 	}

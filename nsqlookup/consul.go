@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"path"
 	"sort"
@@ -428,7 +427,7 @@ func (e *ConsulEngine) do(ctx context.Context, method string, url string, send i
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		io.Copy(ioutil.Discard, res.Body)
+		io.Copy(io.Discard, res.Body)
 		err = consulError{
 			method: method,
 			url:    url,
@@ -443,7 +442,7 @@ func (e *ConsulEngine) do(ctx context.Context, method string, url string, send i
 			return
 		}
 	} else {
-		io.Copy(ioutil.Discard, res.Body)
+		io.Copy(io.Discard, res.Body)
 	}
 
 	return

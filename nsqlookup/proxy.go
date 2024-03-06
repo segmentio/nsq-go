@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -382,7 +381,7 @@ func (e *ProxyEngine) do(ctx context.Context, method string, url string, send in
 		r = bytes.NewReader(b)
 	}
 
-	if strings.Index(url, "://") < 0 {
+	if !strings.Contains(url, "://") {
 		url = "http://" + url
 	}
 
@@ -405,7 +404,7 @@ func (e *ProxyEngine) do(ctx context.Context, method string, url string, send in
 	switch res.StatusCode {
 	case http.StatusOK:
 	case http.StatusNotFound:
-		io.Copy(ioutil.Discard, res.Body)
+		io.Copy(io.Discard, res.Body)
 		err = errNotFound
 		return
 	default:
@@ -422,7 +421,7 @@ func (e *ProxyEngine) do(ctx context.Context, method string, url string, send in
 	}
 
 	if recv == nil {
-		io.Copy(ioutil.Discard, res.Body)
+		io.Copy(io.Discard, res.Body)
 		return
 	}
 
@@ -431,8 +430,6 @@ func (e *ProxyEngine) do(ctx context.Context, method string, url string, send in
 }
 
 type ProxyNode struct {
-	server string
-	info   NodeInfo
 }
 
 type proxyError struct {

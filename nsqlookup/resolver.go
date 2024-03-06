@@ -98,7 +98,7 @@ func (r *ConsulRegistry) get(ctx context.Context, endpoint string, result interf
 		address = "http://localhost:8500"
 	}
 
-	if strings.Index(address, "://") < 0 {
+	if !strings.Contains(address, "://") {
 		address = "http://" + address
 	}
 

@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"log"
 	"math"
 	"math/rand"
@@ -76,6 +76,9 @@ func main() {
 		MaxInFlight: config.MaxInFlight,
 		Identify:    nsq.Identify{UserAgent: config.UserAgent},
 	})
+	if err != nil {
+		log.Fatalf("could not start consumer: %v", err)
+	}
 
 	wg := sync.WaitGroup{}
 	wg.Add(config.MaxInFlight)
@@ -118,7 +121,7 @@ func forward(dst *url.URL, contentType, userAgent string, timeout time.Duration,
 				"Content-Type": {contentType},
 				"User-Agent":   {userAgent},
 			},
-			Body:          ioutil.NopCloser(bytes.NewReader(msg.Body)),
+			Body:          io.NopCloser(bytes.NewReader(msg.Body)),
 			ContentLength: int64(len(msg.Body)),
 		}).WithContext(timers.LowRes.Timeout(timeout)))
 

@@ -34,27 +34,24 @@ func (r Response) FrameType() FrameType {
 
 // Write serializes the frame to the given buffered output, satisfies the Frame
 // interface.
-func (r Response) Write(w *bufio.Writer) (err error) {
-	if err = writeFrameHeader(w, FrameTypeResponse, len(r)); err != nil {
-		err = errors.WithMessage(err, "writing response message")
+func (r Response) Write(w *bufio.Writer) error {
+	if err := writeFrameHeader(w, FrameTypeResponse, len(r)); err != nil {
+		return errors.WithMessage(err, "writing response message")
 	}
 
-	if _, err = w.WriteString(string(r)); err != nil {
-		err = errors.Wrap(err, "writing response message")
-		return
+	if _, err := w.WriteString(string(r)); err != nil {
+		return errors.Wrap(err, "writing response message")
 	}
 
-	return
+	return nil
 }
 
-func readResponse(n int, r *bufio.Reader) (res Response, err error) {
+func readResponse(n int, r *bufio.Reader) (Response, error) {
 	data := make([]byte, n)
 
-	if _, err = io.ReadFull(r, data); err != nil {
-		err = errors.Wrap(err, "reading response message")
-		return
+	if _, err := io.ReadFull(r, data); err != nil {
+		return "", errors.Wrap(err, "reading response message")
 	}
 
-	res = Response(data)
-	return
+	return Response(data), nil
 }

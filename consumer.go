@@ -218,11 +218,11 @@ func (c *Consumer) run() {
 				go func(cm connMeta) {
 					start := time.Now()
 					for len(cm.CmdChan) > 0 {
-						if time.Now().Sub(start) > c.drainTimeout {
-							log.Print("failed to drain CmdChan for connection, closing now")
+						if time.Since(start) > c.drainTimeout {
+							log.Println("failed to drain CmdChan for connection, closing now")
 							break
 						}
-						log.Println("awaiting for write channel to flush any requeue commands")
+						log.Println("waiting for write channel to flush any requeue commands")
 						time.Sleep(time.Millisecond * 500)
 					}
 					closeCommand(cm.CmdChan)
@@ -354,7 +354,6 @@ func (c *Consumer) close() {
 		sendCommand(cm.CmdChan, Cls{})
 	}
 	c.mtx.Unlock()
-	return
 }
 
 func (c *Consumer) closeConn(addr string) {

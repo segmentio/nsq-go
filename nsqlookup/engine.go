@@ -232,10 +232,6 @@ func httpBroadcastAddress(info NodeInfo) string {
 	return makeBroadcastAddress(info.BroadcastAddress, info.HttpPort)
 }
 
-func tcpBroadcastAddress(info NodeInfo) string {
-	return makeBroadcastAddress(info.BroadcastAddress, info.TcpPort)
-}
-
 func makeBroadcastAddress(addr string, port int) string {
 	host, _, _ := net.SplitHostPort(addr)
 	if len(host) == 0 {

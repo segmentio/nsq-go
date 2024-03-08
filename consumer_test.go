@@ -82,7 +82,7 @@ func TestConsumer(t *testing.T) {
 }
 
 func TestRequeue(t *testing.T) {
-	c := &Client{Address: "localhost:4151"}
+	c := &Client{Address: "127.0.0.1:4151"}
 
 	if err := c.Publish("test-requeue", []byte("Hello World!")); err != nil {
 		t.Error(err)
@@ -140,7 +140,7 @@ func TestRequeue(t *testing.T) {
 func TestDrainAndRequeueOnStop(t *testing.T) {
 	p, _ := NewProducer(ProducerConfig{
 		Topic:        "test-stop-requeue",
-		Address:      "localhost:4150",
+		Address:      "127.0.0.1:4150",
 		DialTimeout:  time.Second * 60,
 		ReadTimeout:  time.Second * 60,
 		WriteTimeout: time.Second * 60,
@@ -157,7 +157,7 @@ func TestDrainAndRequeueOnStop(t *testing.T) {
 	consumer, err := NewConsumer(ConsumerConfig{
 		Topic:        "test-stop-requeue",
 		Channel:      "foo",
-		Address:      "localhost:4150",
+		Address:      "127.0.0.1:4150",
 		DialTimeout:  time.Second * 60,
 		ReadTimeout:  time.Second * 60,
 		WriteTimeout: time.Second * 60,
@@ -199,7 +199,7 @@ func TestDrainAndRequeueOnStop(t *testing.T) {
 	consumer2, _ := NewConsumer(ConsumerConfig{
 		Topic:        "test-stop-requeue",
 		Channel:      "foo",
-		Address:      "localhost:4150",
+		Address:      "127.0.0.1:4150",
 		DialTimeout:  time.Second * 60,
 		ReadTimeout:  time.Second * 60,
 		WriteTimeout: time.Second * 60,
@@ -241,7 +241,7 @@ func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 	numberMessages := 25
 	p, _ := NewProducer(ProducerConfig{
 		Topic:        TopicName,
-		Address:      "localhost:4150",
+		Address:      "127.0.0.1:4150",
 		DialTimeout:  time.Second * 60,
 		ReadTimeout:  time.Second * 60,
 		WriteTimeout: time.Second * 60,
@@ -260,7 +260,7 @@ func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 	consumer, err := NewConsumer(ConsumerConfig{
 		Topic:        TopicName,
 		Channel:      "foo",
-		Address:      "localhost:4150",
+		Address:      "127.0.0.1:4150",
 		DialTimeout:  time.Second * 60,
 		ReadTimeout:  time.Second * 60,
 		WriteTimeout: time.Second * 60,
@@ -306,7 +306,7 @@ func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 	consumer2, _ := NewConsumer(ConsumerConfig{
 		Topic:        TopicName,
 		Channel:      "foo",
-		Address:      "localhost:4150",
+		Address:      "127.0.0.1:4150",
 		DialTimeout:  time.Second * 60,
 		ReadTimeout:  time.Second * 60,
 		WriteTimeout: time.Second * 60,

@@ -17,7 +17,7 @@ func TestProducer(t *testing.T) {
 			c, _ := StartConsumer(ConsumerConfig{
 				Topic:   topic,
 				Channel: "channel",
-				Address: "localhost:4150",
+				Address: "127.0.0.1:4150",
 			})
 			defer c.Stop()
 
@@ -25,7 +25,7 @@ func TestProducer(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 
 			p, _ := StartProducer(ProducerConfig{
-				Address:        "localhost:4150",
+				Address:        "127.0.0.1:4150",
 				Topic:          topic,
 				MaxConcurrency: 3,
 			})

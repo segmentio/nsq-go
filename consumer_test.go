@@ -283,14 +283,14 @@ func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 	for msgNum < 5 {
 		select {
 		case msg := <-consumer.Messages():
-			fmt.Printf("start handling message %s\n", string(msg.Body))
+			fmt.Printf("consumer 1: handling message %s\n", string(msg.Body))
 			msgNum++
 		case <-deadline.C:
 			t.Error("timeout")
 			return
 		}
 	}
-	fmt.Printf("Allow some time for the nsqd to timeout received messages")
+	fmt.Printf("Allow some time for the nsqd to timeout received messages\n")
 	// Allow some time for the nsqd to timeout received messages and send 10+ more messages
 	// to client to deadlock runConn
 	time.Sleep(6 * time.Second)
@@ -322,7 +322,7 @@ func TestDrainAndRequeueOnStopWithMessageTimeout(t *testing.T) {
 	for msgNum < numberMessages {
 		select {
 		case msg := <-consumer2.Messages():
-			fmt.Printf("handling message %s\n", string(msg.Body))
+			fmt.Printf("consumer 2: handling message %s\n", string(msg.Body))
 			msg.Finish()
 			msgNum++
 			delete(sentMessages, string(msg.Body))

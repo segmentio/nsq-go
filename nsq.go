@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -23,6 +25,16 @@ func (c *Client) Ping() error {
 func (c *Client) Publish(topic string, message []byte) (err error) {
 	_, err = c.do("POST", "/pub", url.Values{
 		"topic": []string{topic},
+	}, message)
+	return
+}
+
+func (c *Client) DeferredPublish(topic string, delay time.Duration, message []byte) (err error) {
+	delayStr := strconv.FormatUint(uint64(delay/time.Millisecond), 10)
+
+	_, err = c.do("POST", "/pub", url.Values{
+		"topic": []string{topic},
+		"defer": []string{delayStr},
 	}, message)
 	return
 }

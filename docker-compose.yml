@@ -7,35 +7,50 @@ services:
     image: hashicorp/consul:latest
     command: agent -server -dev -log-level debug -client 0.0.0.0
     ports:
-      - 8500:8500
+    - 8500:8500
 
+    # If you are on arm64 and experiencing issues with the tests (hangs,
+    # connection reset) then try the following in order:
+
+    # - stopping and removing all downloaded container images
+    # - ensuring you have the latest Docker Desktop version
+    # - factory reset your Docker Desktop settings
+
+    # If you are still running into issues please post in #help-infra-seg.
+    platform: linux/amd64
   nsqlookupd-1:
     image: nsqio/nsq:v0.3.8
     command: >
       /nsqlookupd
       -broadcast-address localhost:4160
     ports:
-      - 4160:4160
-      - 4161:4161
+    - 4160:4160
+    - 4161:4161
 
+    # See platform comment above for amd64/arm64 troubleshooting
+    platform: linux/amd64
   nsqlookupd-2:
     image: nsqio/nsq:v0.3.8
     command: >
       /nsqlookupd
       -broadcast-address localhost:4162
     ports:
-      - 4162:4160
-      - 4163:4161
+    - 4162:4160
+    - 4163:4161
 
+    # See platform comment above for amd64/arm64 troubleshooting
+    platform: linux/amd64
   nsqlookupd-3:
     image: nsqio/nsq:v0.3.8
     command: >
       /nsqlookupd
       -broadcast-address localhost:4164
     ports:
-      - 4164:4160
-      - 4165:4161
+    - 4164:4160
+    - 4165:4161
 
+    # See platform comment above for amd64/arm64 troubleshooting
+    platform: linux/amd64
   nsqd-1:
     image: nsqio/nsq:v0.3.8
     command: >
@@ -45,13 +60,15 @@ services:
       -lookupd-tcp-address nsqlookupd-2:4160
       -lookupd-tcp-address nsqlookupd-3:4160
     ports:
-      - 4150:4150
-      - 4151:4151
+    - 4150:4150
+    - 4151:4151
     depends_on:
-      - nsqlookupd-1
-      - nsqlookupd-2
-      - nsqlookupd-3
+    - nsqlookupd-1
+    - nsqlookupd-2
+    - nsqlookupd-3
 
+    # See platform comment above for amd64/arm64 troubleshooting
+    platform: linux/amd64
   nsqd-2:
     image: nsqio/nsq:v0.3.8
     command: >
@@ -61,13 +78,15 @@ services:
       -lookupd-tcp-address nsqlookupd-2:4160
       -lookupd-tcp-address nsqlookupd-3:4160
     ports:
-      - 4152:4150
-      - 4153:4151
+    - 4152:4150
+    - 4153:4151
     depends_on:
-      - nsqlookupd-1
-      - nsqlookupd-2
-      - nsqlookupd-3
+    - nsqlookupd-1
+    - nsqlookupd-2
+    - nsqlookupd-3
 
+    # See platform comment above for amd64/arm64 troubleshooting
+    platform: linux/amd64
   nsqd-3:
     image: nsqio/nsq:v0.3.8
     command: >
@@ -77,9 +96,11 @@ services:
       -lookupd-tcp-address nsqlookupd-2:4160
       -lookupd-tcp-address nsqlookupd-3:4160
     ports:
-      - 4154:4150
-      - 4155:4151
+    - 4154:4150
+    - 4155:4151
     depends_on:
-      - nsqlookupd-1
-      - nsqlookupd-2
-      - nsqlookupd-3
+    - nsqlookupd-1
+    - nsqlookupd-2
+    - nsqlookupd-3
+    # See platform comment above for amd64/arm64 troubleshooting
+    platform: linux/amd64

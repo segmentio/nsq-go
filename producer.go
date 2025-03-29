@@ -67,7 +67,7 @@ type Producer struct {
 // producers.
 type ProducerRequest struct {
 	Topic    string
-	Message  []byte
+	Messages [][]byte
 	Response chan<- error
 	Deadline time.Time
 }
@@ -158,7 +158,17 @@ func (p *Producer) Stop() {
 // first unsuccessful attempt to publish the message. It is the responsibility
 // of the caller to retry if necessary.
 func (p *Producer) Publish(message []byte) (err error) {
-	return p.PublishTo(p.topic, message)
+	return p.MultiPublishTo(p.topic, [][]byte{message})
+}
+
+// MultiPublish sends message batch using the producer p, returning an error if it was
+// already closed or if an error occurred while publishing the messages.
+//
+// Note that no retry is done internally, the producer will fail after the
+// first unsuccessful attempt to publish the message. It is the responsibility
+// of the caller to retry if necessary.
+func (p *Producer) MultiPublish(message [][]byte) (err error) {
+	return p.MultiPublishTo(p.topic, message)
 }
 
 // PublishTo sends a message to a specific topic using the producer p, returning
@@ -169,6 +179,17 @@ func (p *Producer) Publish(message []byte) (err error) {
 // first unsuccessful attempt to publish the message. It is the responsibility
 // of the caller to retry if necessary.
 func (p *Producer) PublishTo(topic string, message []byte) (err error) {
+	return p.MultiPublishTo(p.topic, [][]byte{message})
+}
+
+// MultiPublishTo sends a message batch to a specific topic using the producer p, returning
+// an error if it was already closed or if an error occurred while publishing the
+// message.
+//
+// Note that no retry is done internally, the producer will fail after the
+// first unsuccessful attempt to publish the message. It is the responsibility
+// of the caller to retry if necessary.
+func (p *Producer) MultiPublishTo(topic string, messages [][]byte) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = errors.New("publishing to a producer that was already stopped")
@@ -186,7 +207,7 @@ func (p *Producer) PublishTo(topic string, message []byte) (err error) {
 	// it up.
 	p.reqs <- ProducerRequest{
 		Topic:    topic,
-		Message:  message,
+		Messages: messages,
 		Response: response,
 		Deadline: deadline,
 	}
@@ -297,7 +318,7 @@ func (p *Producer) run() {
 				continue
 			}
 
-			if err := p.publish(conn, req.Topic, req.Message); err != nil {
+			if err := p.publish(conn, req.Topic, req.Messages); err != nil {
 				req.complete(err)
 				shutdown(err)
 				continue
@@ -365,11 +386,21 @@ func (p *Producer) write(conn *Conn, cmd Command) (err error) {
 	return
 }
 
-func (p *Producer) publish(conn *Conn, topic string, message []byte) error {
-	return p.write(conn, Pub{
-		Topic:   topic,
-		Message: message,
-	})
+func (p *Producer) publish(conn *Conn, topic string, messages [][]byte) error {
+	switch len(messages) {
+	case 0:
+		return nil
+	case 1:
+		return p.write(conn, Pub{
+			Topic:   topic,
+			Message: messages[0],
+		})
+	default:
+		return p.write(conn, MPub{
+			Topic:    topic,
+			Messages: messages,
+		})
+	}
 }
 
 func (p *Producer) ping(conn *Conn) error {

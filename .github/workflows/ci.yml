@@ -8,7 +8,7 @@ jobs:
       # github.com/actions/setup-go/tags
       uses: actions/setup-go@v5
       with:
-        go-version: 1.22.x
+        go-version: 1.24.x
       # github.com/actions/checkout/tags
     - uses: actions/checkout@v4
       with:

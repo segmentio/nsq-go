@@ -15,10 +15,6 @@ const (
 	tombTimeout = 50 * time.Millisecond
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 func testEngine(t *testing.T, do func(context.Context, *testing.T, Engine)) {
 	tests := []struct {
 		Type string

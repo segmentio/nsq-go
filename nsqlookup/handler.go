@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -507,7 +507,11 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 	defer func() {
 		if node != nil {
 			err := node.Unregister(ctx)
-			log.Printf("UNREGISTER node = %s, err = %s", node, err)
+			if err != nil {
+				slog.Error("error unregistering node", "node", node, "err", err)
+			} else {
+				slog.Info("unregistered node", "node", node)
+			}
 		}
 	}()
 	defer close(resChan)
@@ -550,7 +554,7 @@ func (h TCPHandler) ServeConn(ctx context.Context, conn net.Conn) {
 			case Error:
 				res = e
 			default:
-				log.Print(err)
+				slog.Error("unknown command error", "cmd", cmd, "err", e)
 				return
 			}
 		}
@@ -582,7 +586,11 @@ func (h TCPHandler) identify(ctx context.Context, node Node, info NodeInfo, conn
 	res = RawResponse(b)
 	id, err = h.Engine.RegisterNode(ctx, info)
 
-	log.Printf("IDENTIFY node = %s, err = %v", info, err)
+	if err != nil {
+		slog.Error("identify node error", "node", info, "err", err)
+	} else {
+		slog.Info("identify node", "node", node)
+	}
 	return
 }
 
@@ -591,9 +599,23 @@ func (h TCPHandler) ping(ctx context.Context, node Node) (res OK, err error) {
 		ctx, cancel := context.WithTimeout(ctx, h.EngineTimeout)
 		defer cancel()
 		err = node.Ping(ctx)
-		log.Printf("PING node = %s, err = %v", node, err)
+		if err != nil {
+			slog.Error("send ping error", "node", node, "err", err)
+		} else {
+			slog.Info("send ping", "node", node)
+		}
 	}
 	return
+}
+
+func infoOrErr(msg string, args ...any) {
+	for i, arg := range args {
+		if arg == "err" && args[i+1] != nil {
+			slog.Error(msg, args...)
+			return
+		}
+	}
+	slog.Info(msg, args...)
 }
 
 func (h TCPHandler) register(ctx context.Context, node Node, topic string, channel string) (res OK, err error) {
@@ -616,7 +638,7 @@ func (h TCPHandler) register(ctx context.Context, node Node, topic string, chann
 		err = makeErrBadTopic("missing topic name")
 	}
 
-	log.Printf("REGISTER node = %s, topic = %s, channel = %s, err = %v", node, topic, channel, err)
+	infoOrErr("register", "node", node, "topic", topic, "channel", channel, "err", err)
 	return
 }
 
@@ -644,7 +666,7 @@ func (h TCPHandler) unregister(ctx context.Context, node Node, topic string, cha
 		id = node
 	}
 
-	log.Printf("UNREGISTER node = %s, topic = %s, channel = %s, err = %v", node, topic, channel, err)
+	infoOrErr("unregister node", "node", node, "topic", topic, "channel", channel, "err", err)
 	return
 }
 

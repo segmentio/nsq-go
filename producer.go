@@ -1,7 +1,7 @@
 package nsq
 
 import (
-	"log"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -261,15 +261,15 @@ func (p *Producer) run() {
 		}
 
 		if err != nil {
-			log.Printf("closing nsqd connection to %s: %s", p.address, err)
+			slog.Error("closing nsqd connection", "addr", p.address, "err", err)
 		}
 	}
 
 	connect := func() (err error) {
-		log.Printf("opening nsqd connection to %s", p.address)
+		slog.Info("opening nsqd connection", "addr", p.address)
 
 		if conn, err = DialTimeout(p.address, p.dialTimeout); err != nil {
-			log.Printf("failed to connect to nsqd at %s: %s", p.address, err)
+			slog.Error("failed to connect to nsqd", "addr", p.address, "err", err)
 			return
 		}
 

@@ -7,15 +7,15 @@ import (
 
 var (
 	nsqlookup = []string{
-		"localhost:4161", // nsqlookup-1
-		"localhost:4163", // nsqlookup-2
-		"localhost:4165", // nsqlookup-3
+		"127.0.0.1:4161", // nsqlookup-1
+		"127.0.0.1:4163", // nsqlookup-2
+		"127.0.0.1:4165", // nsqlookup-3
 	}
 
 	nsqd = []string{
-		"localhost:4151", // nsqd-1
-		"localhost:4153", // nsqd-2
-		"localhost:4155", // nsqd-3
+		"127.0.0.1:4151", // nsqd-1
+		"127.0.0.1:4153", // nsqd-2
+		"127.0.0.1:4155", // nsqd-3
 	}
 )
 

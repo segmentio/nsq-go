@@ -136,3 +136,40 @@ func TestProducerBatch(t *testing.T) {
 		})
 	}
 }
+func TestProducer_PublishTo(t *testing.T) {
+
+	tests := []struct {
+		name          string
+		topic         string
+		expectedError string
+		stopProducer  bool
+	}{
+		{name: "PublishesMessageToSpecifiedTopic", topic: "test-topic", expectedError: ""},
+		{name: "FailsWhenPublishingToEmptyTopic", topic: "", expectedError: "topic cannot be empty"},
+		{name: "FailsWhenProducerIsStopped", topic: "test-topic", expectedError: "producer is stopped", stopProducer: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p, _ := StartProducer(ProducerConfig{
+				Address:        "localhost:4150",
+				MaxConcurrency: 1,
+			})
+			if test.stopProducer {
+				p.Stop()
+			} else {
+				defer p.Stop()
+			}
+			message := []byte("test-message")
+			err := p.PublishTo(test.topic, message)
+
+			if err != nil && test.expectedError == "" {
+				t.Errorf("expected no error, got %v", err)
+			}
+
+			if err == nil && test.expectedError != "" {
+				t.Errorf("expected error %v, got nil", test.expectedError)
+			}
+		})
+	}
+}

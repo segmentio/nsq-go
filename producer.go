@@ -179,7 +179,7 @@ func (p *Producer) MultiPublish(message [][]byte) (err error) {
 // first unsuccessful attempt to publish the message. It is the responsibility
 // of the caller to retry if necessary.
 func (p *Producer) PublishTo(topic string, message []byte) (err error) {
-	return p.MultiPublishTo(p.topic, [][]byte{message})
+	return p.MultiPublishTo(topic, [][]byte{message})
 }
 
 // MultiPublishTo sends a message batch to a specific topic using the producer p, returning

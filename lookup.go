@@ -51,22 +51,18 @@ func (c *LookupClient) Lookup(topic string) (result LookupResult, err error) {
 	producers := make(map[producerInfoKey]ProducerInfo)
 
 	for _, r := range retList {
-		v := struct {
-			StatusCode int          `json:"status_code"`
-			StatusTxt  string       `json:"status_txt"`
-			Data       LookupResult `json:"data"`
-		}{}
+		var lookupResult LookupResult
 
-		if e := json.Unmarshal(r, &v); e != nil {
+		if e := json.Unmarshal(r, &lookupResult); e != nil {
 			err = appendError(err, e)
 			continue
 		}
 
-		for _, c := range v.Data.Channels {
+		for _, c := range lookupResult.Channels {
 			channels[c] = true
 		}
 
-		for _, p := range v.Data.Producers {
+		for _, p := range lookupResult.Producers {
 			producers[producerInfoKey{
 				BroadcastAddress: p.BroadcastAddress,
 				Hostname:         p.Hostname,

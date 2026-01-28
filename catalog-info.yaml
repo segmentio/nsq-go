@@ -1,0 +1,14 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: nsq-go
+  description: Go package providing tools for building NSQ clients, servers and middleware.
+  annotations:
+    github.com/project-slug: segmentio/nsg-go
+    buildkite.com/project-slug: segment/nsg-go
+    segment.io/security-tier: "1"
+spec:
+  type: library
+  lifecycle: production
+  owner: group:default/sup-org-2329
+  system: segment-source-pipeline

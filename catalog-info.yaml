@@ -10,5 +10,5 @@ metadata:
 spec:
   type: library
   lifecycle: production
-  owner: group:default/sup-org-2329
+  owner: group:default/sup-org-2738
   system: segment-source-pipeline

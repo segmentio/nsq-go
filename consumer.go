@@ -2,7 +2,7 @@ package nsq
 
 import (
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -175,32 +175,32 @@ func (c *Consumer) run() {
 	defer ticker.Stop()
 
 	if err := c.pulse(); err != nil {
-		log.Print(err)
+		slog.Error("pulse error", "err", err)
 	}
 
 	for {
 		select {
 		case <-ticker.C:
 			if err := c.pulse(); err != nil {
-				log.Print(err)
+				slog.Error("pulse error", "err", err)
 			}
 
 		case <-c.done:
-			log.Println("Consumer initiating shutdown sequence")
+			slog.Info("Consumer initiating shutdown sequence")
 			// Send a CLS to all Cmd Channels for all connections
 			c.close()
-			log.Println("draining and re-queueing in-flight messages and awaiting connection waitgroup")
+			slog.Info("draining and re-queueing in-flight messages and awaiting connection waitgroup")
 			// Drain and re-queue any in-flight messages until all runConn routines return
 			c.drainAndJoinAwait()
 			// At this point all runConn routines have returned, therefore we know
 			// we won't be receiving any new messages from nsqd servers.
 			// But we potentially could have some messages in c.msgs
 			// We can safely close the c.msgs channel and requeue the remaining messages.
-			log.Println("draining and requeueing remaining in-flight messages")
+			slog.Info("draining and requeueing remaining in-flight messages")
 			// drain and requeue any remaining in-flight messages
 			close(c.msgs)
 			c.drainRemaining()
-			log.Println("closing and cleaning up connections")
+			slog.Info("closing and cleaning up connections")
 			// Cleanup remaining connections
 			c.mtx.Lock()
 			connCloseWg := sync.WaitGroup{}
@@ -219,28 +219,27 @@ func (c *Consumer) run() {
 					start := time.Now()
 					for len(cm.CmdChan) > 0 {
 						if time.Since(start) > c.drainTimeout {
-							log.Println("failed to drain CmdChan for connection, closing now")
+							slog.Info("failed to drain CmdChan for connection, closing now")
 							break
 						}
-						log.Println("waiting for write channel to flush any requeue commands")
+						slog.Info("waiting for write channel to flush any requeue commands")
 						time.Sleep(time.Millisecond * 500)
 					}
 					closeCommand(cm.CmdChan)
 					err := cm.Con.Close()
 					if err != nil {
-						log.Printf("error returned from connection close %+s", err.Error())
+						slog.Error("error closing connection", "err", err)
 					}
 					connCloseWg.Done()
 				}(cm)
 			}
 			c.mtx.Unlock()
-			success := c.await(&connCloseWg, c.drainTimeout)
-			if success {
-				log.Println("successfully flushed all connections")
+			if success := c.await(&connCloseWg, c.drainTimeout); success {
+				slog.Info("successfully flushed all connections")
 			} else {
-				log.Println("timed out awaiting connections flush and close")
+				slog.Warn("timed out awaiting connections flush and close")
 			}
-			log.Println("Consumer exiting run")
+			slog.Info("Consumer exiting run")
 			// Signal to the stop() function that orderly shutdown is complete
 			c.shutJoin.Done()
 			return
@@ -280,7 +279,7 @@ func (c *Consumer) drainAndJoinAwait() {
 			return
 		case m, ok := <-c.msgs:
 			if ok {
-				log.Printf("requeueing %+v\n", m.ID.String())
+				slog.Info("requeueing message", "msg", m.ID)
 				sendCommand(m.cmdChan, Req{MessageID: m.ID})
 			}
 		}
@@ -291,7 +290,7 @@ func (c *Consumer) drainAndJoinAwait() {
 // channel and issues a REQ command for each.
 func (c *Consumer) drainRemaining() {
 	for m := range c.msgs {
-		log.Printf("requeueing %+v\n", m.ID.String())
+		slog.Info("requeueing message", "msg", m.ID)
 		sendCommand(m.cmdChan, Req{MessageID: m.ID})
 	}
 }
@@ -332,7 +331,7 @@ func (c *Consumer) pulse() (err error) {
 			cmdChan := make(chan Command, c.maxInFlight+2)
 			conn, err := c.getConn(addr)
 			if err != nil {
-				log.Printf("failed to connect to %s: %s", addr, err)
+				slog.Error("failed to connect", "addr", addr, "err", err)
 				continue
 			}
 			cm := connMeta{CmdChan: cmdChan, Con: conn}
@@ -348,7 +347,7 @@ func (c *Consumer) pulse() (err error) {
 }
 
 func (c *Consumer) close() {
-	log.Println("sending CLS to all command channels")
+	slog.Info("sending CLS to all command channels")
 	c.mtx.Lock()
 	for _, cm := range c.conns {
 		sendCommand(cm.CmdChan, Cls{})
@@ -403,7 +402,7 @@ func (c *Consumer) runConn(conn *Conn, addr string, cmdChan chan Command) {
 
 		if frame, err = conn.ReadFrame(); err != nil {
 			if err != io.EOF && err != io.ErrUnexpectedEOF {
-				log.Print(err)
+				slog.Error("could not read frame", "err", err)
 			}
 			return
 		}
@@ -424,16 +423,16 @@ func (c *Consumer) runConn(conn *Conn, addr string, cmdChan chan Command) {
 				return
 
 			default:
-				log.Printf("closing connection after receiving an unexpected response from %s: %s", conn.RemoteAddr(), f)
+				slog.Error("closing connection after receiving an unexpected response", "remote_addr", conn.RemoteAddr(), "response", f)
 				return
 			}
 
 		case Error:
-			log.Printf("closing connection after receiving an error from %s: %s", conn.RemoteAddr(), f)
+			slog.Error("closing connection after receiving an error", "remote_addr", conn.RemoteAddr(), "response", f)
 			return
 
 		default:
-			log.Printf("closing connection after receiving an unsupported frame from %s: %s", conn.RemoteAddr(), f.FrameType())
+			slog.Error("closing connection after receiving an unsupported frame", "remote_addr", conn.RemoteAddr(), "response", f)
 			return
 		}
 	}
@@ -449,7 +448,7 @@ func (c *Consumer) writeConn(conn *Conn, cmdChan chan Command) {
 
 	for cmd := range cmdChan {
 		if err := c.writeConnCommand(conn, cmd); err != nil {
-			log.Print(err)
+			slog.Error("could not write command to channel", "cmd", cmd, "err", err)
 			return
 		}
 	}
